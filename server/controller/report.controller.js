@@ -1,10 +1,24 @@
 import Report from '../model/report.model.js'
+import Comment from '../model/comment.model.js'
 
 export async function allReport(req,res){
     try{
         const report = await Report.find({})
         if(report){
             return res.status(200).json({msg:"all the reports", report})
+        }
+    }catch(e){
+        res.json({msg:"Error while fetching report",e})
+    }
+    
+}
+
+export async function getCommentByReports(req,res){
+    const {reportId}=req.body;
+    try{
+        const comment = await Comment.find({reportId})
+        if(comment){
+            return res.status(200).json({msg:"all the reports", comment})
         }
     }catch(e){
         res.json({msg:"Error while fetching report",e})

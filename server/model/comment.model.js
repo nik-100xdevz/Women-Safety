@@ -14,7 +14,7 @@ const commentSchema = new Schema({
         ref:'Report'
 
     }
-},{timestamp:true})
+},{timestamps:true})
 
 const Comment = mongoose.model('Comment',commentSchema)
 

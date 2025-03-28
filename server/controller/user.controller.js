@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
-
+import Report from '../model/report.model.js'
 import User from '../model/user.model.js';
+import Comment from '../model/comment.model.js';
 import {config} from '../config/config.js'
 
 export const userRegister =  async(req, res) => {
@@ -30,5 +31,16 @@ export const userLogin =  async(req, res) => {
 export const userInfo = async(req,res)=>{
     const user = await User.findById(req.userId).select('-password')
     return res.status(200).json({msg:"here is user data",user}) 
+   
+  }
+export const reportInfo = async(req,res)=>{
+    const report = await Report.find({user:req.userId})
+    return res.status(200).json({msg:"here is user data",report}) 
+   
+  }
+export const commentInfo = async(req,res)=>{
+    const comment = await Comment.find({userId:req.userId}).populate('reportId')
+    console.log(comment)
+    return res.status(200).json({msg:"here is user data",comment}) 
    
   }

@@ -19,7 +19,7 @@ const reportSchema = new Schema({
         required:true
     }
     
-},{timestamp:true})
+},{timestamps:true})
 
 const Report = mongoose.model('Report',reportSchema)
 

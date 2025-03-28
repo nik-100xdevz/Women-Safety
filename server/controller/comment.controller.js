@@ -3,7 +3,7 @@ import Report from '../model/report.model.js'
 import Comment from '../model/comment.model.js'
 
 export async function allComment(req,res){
-    const {reportId} = req.body
+    const reportId = req.params.reportId
     if(!reportId){
         return res.status(400).json({msg:"Report id not found"})
     }
@@ -52,19 +52,20 @@ try{
 
 // }
 
-// export async function deleteComment(req,res) {
-//     const CommentId = req.params.CommentId;
-// try{    
-//     const Comment = await Comment.findById(CommentId)
-//     if(!Comment){
-//         return res.status(404).json({msg:"Comment does not found"})
-//     }
-//     if(!(Comment.user == req.userId)){
-//         return res.status(404).json({msg:"Please delete your own Comment"})
-//     }
-//     await Comment.findByIdAndDelete(CommentId)
-//     return res.status(200).json({msg:"Comment has been deleted"})
-// }catch(e){
-//     return res.json({msg:"Error occured while Commenting the incident",e})
-// }
-// }
+export async function deleteComment(req,res) {
+    const CommentId = req.params.commentId;
+try{    
+    const comment = await Comment.findById(CommentId)
+
+    if(!comment){
+        return res.status(404).json({msg:"Comment does not found"})
+    }
+    if(!(comment.userId == req.userId)){
+        return res.status(404).json({msg:"Please delete your own Comment"})
+    }
+    await Comment.findByIdAndDelete(CommentId)
+    return res.status(200).json({msg:"Comment has been deleted"})
+}catch(e){
+    return res.json({msg:"Error occured while Commenting the incident",e})
+}
+}
