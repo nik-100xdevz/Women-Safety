@@ -24,7 +24,7 @@ const Signup = () => {
       setError('Passwords do not match');
       return;
     }
-    // Add your registration logic here
+    
     console.log('Form submitted:', formData);
   };
 
