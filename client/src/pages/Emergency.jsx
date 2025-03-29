@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Typography, List, ListItem, ListItemText, ListItemSecondaryAction, Alert, CircularProgress } from '@mui/material';
+import { Button, Typography, List, ListItem, ListItemText, ListItemSecondaryAction, Alert, CircularProgress } from '@mui/material';
 import { getFriends, sendEmergencyAlert, stopEmergencyAlert, acknowledgeAlert } from '../services/api';
 import { registerServiceWorker, requestNotificationPermission, subscribeToPushNotifications, startEmergencyAlert, stopEmergencyAlert as stopServiceWorkerAlert, storeAuthToken } from '../services/serviceWorkerUtils';
 

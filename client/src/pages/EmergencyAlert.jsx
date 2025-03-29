@@ -25,7 +25,10 @@ const EmergencyAlert = () => {
   // Function to check for active emergency alert
   const checkActiveAlert = async () => {
     try {
+      setLoading(true);
       const response = await getFriends();
+      
+      console.log('Active alert check response:', response);
       
       // If there's an active alert in the response
       if (response.activeAlert && response.alertId) {
@@ -38,11 +41,13 @@ const EmergencyAlert = () => {
         }
         
         // Start periodic refresh for active alert
-        const refreshInterval = setInterval(fetchFriends, 10000);
+        const refreshInterval = setInterval(fetchFriends, 5000); // Every 5 seconds
         window.emergencyRefreshInterval = refreshInterval;
       }
+      setLoading(false);
     } catch (err) {
       console.error('Error checking active alert:', err);
+      setLoading(false);
     }
   };
 
@@ -79,20 +84,33 @@ const EmergencyAlert = () => {
   const fetchFriends = async () => {
     try {
       const response = await getFriends();
+      console.log('Fetch friends response:', response);
+      
       setFriends(response.friends || []);
       
       // Update acknowledgments if any
       if (response.acknowledgments && response.acknowledgments.length > 0) {
         setAcknowledgments(response.acknowledgments);
+        console.log('Updated acknowledgments:', response.acknowledgments);
       }
       
       // Update active alert status
       if (response.activeAlert && response.alertId) {
-        setIsAlertActive(true);
+        if (!isAlertActive) {
+          console.log('Alert is active but state was inactive - updating state');
+          setIsAlertActive(true);
+        }
         setAlertId(response.alertId);
-      } else {
+      } else if (isAlertActive) {
+        console.log('Alert is inactive but state was active - updating state');
         setIsAlertActive(false);
         setAlertId(null);
+        
+        // Clear interval if alert is no longer active
+        if (window.emergencyRefreshInterval) {
+          clearInterval(window.emergencyRefreshInterval);
+          window.emergencyRefreshInterval = null;
+        }
       }
     } catch (err) {
       setError('Failed to fetch friends');
@@ -151,11 +169,9 @@ const EmergencyAlert = () => {
   const handleStopAlert = async () => {
     try {
       setLoading(true);
-      
-      // Only try to stop the alert if we have an alertId or the alert is active
+  
       if (isAlertActive) {
-        const response = await stopEmergencyAlert();
-        console.log("Stop alert response:", response);
+        await stopEmergencyAlert(); 
       }
       
       setIsAlertActive(false);
@@ -180,18 +196,26 @@ const EmergencyAlert = () => {
       // Only proceed if we have an alertId
       if (!alertId) {
         console.error('Cannot acknowledge: No active alert ID');
+        setError('Cannot acknowledge alert: No active alert ID');
         return;
       }
       
-      const response = await acknowledgeAlert(alertId);
+      console.log('Acknowledging alert with ID:', alertId, 'for friend:', friendId);
+      
+      // Pass both alertId and friendId to acknowledge the alert for a specific user
+      const response = await acknowledgeAlert(alertId, friendId);
       console.log("Acknowledge response:", response);
       
       // Add to acknowledgments list if not already there
       if (!acknowledgments.includes(friendId)) {
         setAcknowledgments(prev => [...prev, friendId]);
       }
+      
+      // Refresh friends list to get updated acknowledgments
+      fetchFriends();
     } catch (err) {
       console.error('Error acknowledging alert:', err);
+      setError('Failed to acknowledge alert: ' + (err.message || 'Unknown error'));
     }
   };
 

@@ -106,8 +106,8 @@ const startEmergencyAlertInterval = (data) => {
   alertIntervalId = setInterval(() => {
     const options = {
       body: data.message || 'Friend needs help! Tap to acknowledge.',
-      icon: '/logo192.png',
-      badge: '/logo192.png',
+      icon: '../src/assets/logo.png',
+      badge: '../src/assets/logo.png',
       vibrate: [200, 100, 200],
       data: {
         dateOfArrival: Date.now(),
@@ -125,12 +125,12 @@ const startEmergencyAlertInterval = (data) => {
           title: 'Close'
         },
       ],
-      tag: 'emergency-alert', // Use tag to replace existing notification
-      renotify: true // Make device vibrate again even with same tag
+      tag: 'emergency-alert', 
+      renotify: true
     };
     
     self.registration.showNotification('EMERGENCY ALERT', options);
-  }, 2000); // 2-second interval
+  }, 2000); 
 };
 
 // Function to stop emergency alert interval
@@ -142,8 +142,8 @@ const stopEmergencyAlertInterval = () => {
     // Show a final notification that the alert has stopped
     self.registration.showNotification('Alert Stopped', {
       body: 'The emergency alert has been stopped',
-      icon: '/logo192.png',
-      badge: '/logo192.png'
+      icon: '../src/assets/logo.png',
+      badge: '../src/assets/logo.png',
     });
   }
 };
@@ -160,12 +160,20 @@ self.addEventListener('message', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  if (event.action === 'acknowledge' || event.action === '') {
+  if (event.action === 'acknowledge' || event.notification.data) {
     // Send acknowledgment to the server
-    const alertId = event.notification.data?.alertId;
+    console.log('Notification clicked:', event.notification);
+    console.log('Notification data:', event.notification.data);
+    
+    const alertId = event.notification.data?.alertId || event.notification.data?.primaryKey;
     
     if (!alertId) {
       console.error('No alert ID found in notification data');
+      // Create a notification to inform the user
+      self.registration.showNotification('Error', {
+        body: 'Could not acknowledge alert. Please open the app to acknowledge.',
+        icon: '/logo192.png'
+      });
       return;
     }
     
@@ -176,10 +184,14 @@ self.addEventListener('notificationclick', (event) => {
     getAuthToken().then(token => {
       if (!token) {
         console.error('No authentication token found');
+        self.registration.showNotification('Error', {
+          body: 'Authentication required. Please open the app to acknowledge.',
+          icon: '/logo192.png'
+        });
         return;
       }
       
-      console.log('Acknowledging alert:', alertId);
+      console.log('Acknowledging alert with ID:', alertId);
       
       // Send acknowledgment to server
       fetch(`${apiUrl}/user/emergency-alerts/acknowledge`, {
@@ -192,39 +204,60 @@ self.addEventListener('notificationclick', (event) => {
       })
       .then(response => {
         if (!response.ok) {
+          console.error('Server responded with status:', response.status);
           throw new Error('Server responded with status: ' + response.status);
         }
         return response.json();
       })
       .then(data => {
         console.log('Alert acknowledged successfully:', data);
-        // Send message to client to update UI
-        self.clients.matchAll().then(clients => {
-          clients.forEach(client => {
-            client.postMessage({
-              type: 'alert_acknowledged',
-              alertId: alertId
-            });
-          });
+        
+        // Show notification of successful acknowledgment
+        self.registration.showNotification('Alert Acknowledged', {
+          body: 'Emergency alert has been acknowledged successfully',
+          icon: '/logo192.png'
         });
+        
+        // Open the app if the user clicked the notification directly
+        if (!event.action) {
+          clients.openWindow('/emergency/alert');
+        }
       })
       .catch(error => {
         console.error('Error acknowledging alert:', error);
+        
+        // Show notification of failed acknowledgment
+        self.registration.showNotification('Error', {
+          body: 'Failed to acknowledge alert. Please try again or open the app.',
+          icon: '/logo192.png'
+        });
+      });
+    }).catch(error => {
+      console.error('Error getting auth token:', error);
+      self.registration.showNotification('Authentication Error', {
+        body: 'Please open the app to authenticate and acknowledge the alert.',
+        icon: '/logo192.png'
       });
     });
-    
-    // Open the emergency page when alert is clicked
+  } else if (event.action === 'close') {
+    // Just close the notification, no action needed
+    return;
+  } else {
+    // For any other action or direct click, open the emergency page
     event.waitUntil(
-      self.clients.matchAll({ type: 'window' }).then(clientList => {
-        // Check if there is already a window open
-        for (const client of clientList) {
+      clients.matchAll({
+        type: 'window'
+      }).then(function(windowClients) {
+        // Check if there is already a window/tab open with the target URL
+        for (var i = 0; i < windowClients.length; i++) {
+          var client = windowClients[i];
           if (client.url.includes('/emergency') && 'focus' in client) {
             return client.focus();
           }
         }
-        // If no window is open, open a new one
-        if (self.clients.openWindow) {
-          return self.clients.openWindow('/emergency');
+        // If no window/tab is open, open a new one
+        if (clients.openWindow) {
+          return clients.openWindow('/emergency/alert');
         }
       })
     );

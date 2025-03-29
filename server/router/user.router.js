@@ -42,8 +42,11 @@ userRouter.route('/friends/:friendId').delete(jwtVerify, removeFriend)
 
 // Emergency alert routes
 userRouter.route('/emergency-alerts/start').post(jwtVerify,startEmergencyAlert)
-userRouter.route('/emergency-alerts/stop').post(jwtVerify, stopEmergencyAlert)
-userRouter.route('/emergency-alerts/acknowledge').post(jwtVerify, acknowledgeAlert)
+userRouter.route('/emergency-alerts/stop').post(jwtVerify,stopEmergencyAlert)
+userRouter.route('/emergency-alerts/acknowledge').post(jwtVerify,(req,res,next)=>{
+  console.log("stop the shit")
+  next()
+} , acknowledgeAlert)
 
 // Push notification subscription route
 userRouter.route('/push-subscription').post(jwtVerify, savePushSubscription)

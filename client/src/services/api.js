@@ -154,15 +154,28 @@ export const stopEmergencyAlert = async () => {
   return response.data;
 };
 
-export const acknowledgeAlert = async (alertId) => {
+export const acknowledgeAlert = async (alertId, userId) => {
   if (!alertId) {
     console.error('Cannot acknowledge: alertId is required');
     throw new Error('alertId is required to acknowledge an alert');
   }
   
-  console.log('Acknowledging alert with ID:', alertId);
-  const response = await api.post('/user/emergency-alerts/acknowledge', { alertId });
-  return response.data;
+  console.log('Acknowledging alert with ID:', alertId, userId ? `for user: ${userId}` : '');
+  
+  // Create request body with alertId and optional userId
+  const requestBody = { alertId };
+  if (userId) {
+    requestBody.userId = userId;
+  }
+  
+  try {
+    const response = await api.post('/user/emergency-alerts/acknowledge', requestBody);
+    console.log('Acknowledge response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error in acknowledgeAlert:', error.response ? error.response.data : error.message);
+    throw error;
+  }
 };
 
 // Push Notification API

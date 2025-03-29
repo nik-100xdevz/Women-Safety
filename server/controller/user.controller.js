@@ -361,7 +361,7 @@ export const stopEmergencyAlert = async (req, res) => {
     await alert.save();
 
     // Stop sending notifications
-    console.log("Walla walla habibi")
+   
     stopNotificationInterval(alert._id);
 
     console.log('Emergency alert stopped:', alert._id);
@@ -599,7 +599,6 @@ const startNotificationInterval = (alertId, recipients) => {
 
 // Helper function to stop notification interval
 const stopNotificationInterval = (alertId) => {
-  console.log('Stopping notification interval for alert:', alertId);
   
   const interval = notificationIntervals.get(alertId.toString());
   if (interval) {
