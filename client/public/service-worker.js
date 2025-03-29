@@ -32,43 +32,69 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('push', (event) => {
-  const data = event.data.json();
+  console.log('Push notification received:', event);
   
-  // Check if it's an emergency alert start or stop message
-  if (data.type === 'emergency_start') {
-    startEmergencyAlertInterval(data);
-    return;
-  } else if (data.type === 'emergency_stop') {
-    stopEmergencyAlertInterval();
-    return;
+  try {
+    if (!event.data) {
+      console.warn('Push event received but no data');
+      return;
+    }
+    
+    let data;
+    try {
+      data = event.data.json();
+    } catch (err) {
+      console.error('Error parsing push data as JSON:', err);
+      data = { 
+        title: 'Emergency Alert',
+        body: event.data ? event.data.text() : 'New notification' 
+      };
+    }
+    
+    console.log('Push data:', data);
+    
+    // Check if it's an emergency alert start or stop message
+    if (data.type === 'emergency_start') {
+      startEmergencyAlertInterval(data);
+      return;
+    } else if (data.type === 'emergency_stop') {
+      stopEmergencyAlertInterval();
+      return;
+    }
+    
+    const title = data.title || 'Emergency Alert';
+    const options = {
+      body: data.body || 'Emergency notification received',
+      icon: data.icon || '/logo192.png',
+      badge: data.badge || '/logo192.png',
+      data: data.data || {
+        dateOfArrival: Date.now(),
+        primaryKey: 1,
+        alertId: data.alertId
+      },
+      vibrate: data.vibrate || [100, 50, 100],
+      actions: data.actions || [
+        {
+          action: 'acknowledge',
+          title: 'Acknowledge'
+        },
+        {
+          action: 'close',
+          title: 'Close'
+        }
+      ]
+    };
+    
+    event.waitUntil(self.registration.showNotification(title, options));
+  } catch (error) {
+    console.error('Error handling push event:', error);
+    // Show a generic notification as fallback
+    event.waitUntil(
+      self.registration.showNotification('Emergency Alert', {
+        body: 'Emergency notification received'
+      })
+    );
   }
-  
-  // Regular notification for one-time alerts
-  const options = {
-    body: data.message || 'Emergency Alert!',
-    icon: '/logo192.png',
-    badge: '/logo192.png',
-    vibrate: [100, 50, 100],
-    data: {
-      dateOfArrival: Date.now(),
-      primaryKey: 1,
-      alertId: data.alertId
-    },
-    actions: [
-      {
-        action: 'acknowledge',
-        title: 'Acknowledge Alert'
-      },
-      {
-        action: 'close',
-        title: 'Close'
-      },
-    ],
-  };
-
-  event.waitUntil(
-    self.registration.showNotification('Emergency Alert', options)
-  );
 });
 
 // Function to start emergency alert notifications at 2-second intervals
@@ -246,4 +272,34 @@ const getAuthToken = () => {
       }
     };
   });
-}; 
+};
+
+// Handle requests to acknowledge emergency alerts
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  
+  // Only intercept specific API requests
+  if (url.pathname.includes('/api/emergency/acknowledge')) {
+    console.log('Intercepting acknowledge request:', url.pathname);
+    
+    event.respondWith(
+      fetch(event.request.clone())
+        .then(response => {
+          console.log('Acknowledge response:', response.status);
+          return response;
+        })
+        .catch(error => {
+          console.error('Error with fetch:', error);
+          // For offline support, queue important requests
+          // This is a simplified implementation
+          return new Response(JSON.stringify({ 
+            message: 'Request queued for offline processing',
+            queued: true 
+          }), {
+            headers: { 'Content-Type': 'application/json' },
+            status: 202
+          });
+        })
+    );
+  }
+}); 

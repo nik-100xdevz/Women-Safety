@@ -133,7 +133,7 @@ const LiveLocation = () => {
         transition={{ duration: 0.6 }}
         className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12"
       >
-        <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="bg-white rounded-lg shadow-lg p-6 relative z-10">
           {error ? (
             <div className="text-center text-red-600 mb-4">
               <p>{error}</p>

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Box, Button, Typography, Paper, List, ListItem, ListItemText, ListItemSecondaryAction, Alert, CircularProgress } from '@mui/material';
 import { getFriends, sendEmergencyAlert, stopEmergencyAlert, acknowledgeAlert } from '../services/api';
+import { registerServiceWorker, requestNotificationPermission, subscribeToPushNotifications } from '../services/serviceWorkerUtils';
 
 const EmergencyAlert = () => {
   const [isAlertActive, setIsAlertActive] = useState(false);
@@ -10,20 +11,68 @@ const EmergencyAlert = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [acknowledgments, setAcknowledgments] = useState([]);
+  const [notificationPermission, setNotificationPermission] = useState(Notification.permission === 'granted');
+  const [alertId, setAlertId] = useState(null);
 
   useEffect(() => {
     fetchFriends();
-    registerServiceWorker();
+    setupNotifications();
+    
+    // Check if there's an active alert when the component mounts
+    checkActiveAlert();
   }, []);
-
-  const registerServiceWorker = async () => {
-    if ('serviceWorker' in navigator) {
-      try {
-        const registration = await navigator.serviceWorker.register('/service-worker.js');
-        console.log('Service Worker registered:', registration);
-      } catch (error) {
-        console.error('Service Worker registration failed:', error);
+  
+  // Function to check for active emergency alert
+  const checkActiveAlert = async () => {
+    try {
+      const response = await getFriends();
+      
+      // If there's an active alert in the response
+      if (response.activeAlert && response.alertId) {
+        setIsAlertActive(true);
+        setAlertId(response.alertId);
+        
+        // Set acknowledgments if any
+        if (response.acknowledgments && response.acknowledgments.length > 0) {
+          setAcknowledgments(response.acknowledgments);
+        }
+        
+        // Start periodic refresh for active alert
+        const refreshInterval = setInterval(fetchFriends, 10000);
+        window.emergencyRefreshInterval = refreshInterval;
       }
+    } catch (err) {
+      console.error('Error checking active alert:', err);
+    }
+  };
+
+  const setupNotifications = async () => {
+    try {
+      // Register service worker
+      await registerServiceWorker();
+      
+      // Check current notification permission
+      if (Notification.permission === 'granted') {
+        setNotificationPermission(true);
+        // Subscribe to push notifications if permission is already granted
+        await subscribeToPushNotifications();
+      }
+    } catch (error) {
+      console.error('Error setting up notifications:', error);
+    }
+  };
+
+  const handleRequestPermission = async () => {
+    try {
+      const permissionGranted = await requestNotificationPermission();
+      setNotificationPermission(permissionGranted);
+      
+      if (permissionGranted) {
+        // If permission is granted, subscribe to push notifications
+        await subscribeToPushNotifications();
+      }
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
     }
   };
 
@@ -31,6 +80,20 @@ const EmergencyAlert = () => {
     try {
       const response = await getFriends();
       setFriends(response.friends || []);
+      
+      // Update acknowledgments if any
+      if (response.acknowledgments && response.acknowledgments.length > 0) {
+        setAcknowledgments(response.acknowledgments);
+      }
+      
+      // Update active alert status
+      if (response.activeAlert && response.alertId) {
+        setIsAlertActive(true);
+        setAlertId(response.alertId);
+      } else {
+        setIsAlertActive(false);
+        setAlertId(null);
+      }
     } catch (err) {
       setError('Failed to fetch friends');
       console.error('Error fetching friends:', err);
@@ -41,30 +104,92 @@ const EmergencyAlert = () => {
 
   const handleStartAlert = async () => {
     try {
-      await sendEmergencyAlert();
+      setLoading(true);
+      
+      // Ensure push subscription is registered before starting alert
+      if (Notification.permission === 'granted') {
+        try {
+          await subscribeToPushNotifications();
+        } catch (subError) {
+          console.warn('Push subscription registration issue:', subError);
+          // Continue anyway, as the alert can still work without push
+        }
+      }
+      
+      const response = await sendEmergencyAlert();
+      console.log("Emergency alert response:", response);
+      
       setIsAlertActive(true);
       setError(null);
+      
+      // Save the alertId for future operations
+      if (response.alertId) {
+        setAlertId(response.alertId);
+      }
+      
+      // If there are friends in the response, update the state
+      if (response.friends) {
+        setFriends(response.friends);
+      }
+      
+      // Reset acknowledgments when starting a new alert
+      setAcknowledgments([]);
+      
+      // Begin periodic refresh of friend statuses
+      const refreshInterval = setInterval(fetchFriends, 10000); // Refresh every 10 seconds
+      
+      // Store the interval ID for cleanup
+      window.emergencyRefreshInterval = refreshInterval;
     } catch (err) {
-      setError('Failed to start emergency alert');
+      setError('Failed to start emergency alert: ' + (err.message || 'Unknown error'));
       console.error('Error starting alert:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleStopAlert = async () => {
     try {
-      await stopEmergencyAlert();
+      setLoading(true);
+      
+      // Only try to stop the alert if we have an alertId or the alert is active
+      if (isAlertActive) {
+        const response = await stopEmergencyAlert();
+        console.log("Stop alert response:", response);
+      }
+      
       setIsAlertActive(false);
+      setAlertId(null);
       setError(null);
+      
+      // Clear the refresh interval
+      if (window.emergencyRefreshInterval) {
+        clearInterval(window.emergencyRefreshInterval);
+        window.emergencyRefreshInterval = null;
+      }
     } catch (err) {
-      setError('Failed to stop emergency alert');
+      setError('Failed to stop emergency alert: ' + (err.message || 'Unknown error'));
       console.error('Error stopping alert:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleAcknowledgeAlert = async (friendId) => {
     try {
-      await acknowledgeAlert(friendId);
-      setAcknowledgments(prev => [...prev, friendId]);
+      // Only proceed if we have an alertId
+      if (!alertId) {
+        console.error('Cannot acknowledge: No active alert ID');
+        return;
+      }
+      
+      const response = await acknowledgeAlert(alertId);
+      console.log("Acknowledge response:", response);
+      
+      // Add to acknowledgments list if not already there
+      if (!acknowledgments.includes(friendId)) {
+        setAcknowledgments(prev => [...prev, friendId]);
+      }
     } catch (err) {
       console.error('Error acknowledging alert:', err);
     }
@@ -142,6 +267,23 @@ const EmergencyAlert = () => {
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Emergency Alert</h3>
               <p className="text-gray-600 mb-4">Send alerts to your friends in case of emergency</p>
               
+              {!notificationPermission && (
+                <div className="mb-4">
+                  <Alert severity="warning" sx={{ mb: 2 }}>
+                    Notification permission is required for this feature to work properly.
+                  </Alert>
+                  <Button 
+                    variant="outlined" 
+                    color="primary" 
+                    onClick={handleRequestPermission}
+                    sx={{ mb: 2 }}
+                    fullWidth
+                  >
+                    Allow Notifications
+                  </Button>
+                </div>
+              )}
+              
               {!isAlertActive ? (
                 <Button
                   variant="contained"
@@ -149,9 +291,10 @@ const EmergencyAlert = () => {
                   size="large"
                   fullWidth
                   onClick={handleStartAlert}
+                  disabled={loading}
                   sx={{ py: 1.5 }}
                 >
-                  Start Emergency Alert
+                  {loading ? <CircularProgress size={24} color="inherit" /> : 'Start Emergency Alert'}
                 </Button>
               ) : (
                 <Button
@@ -160,9 +303,10 @@ const EmergencyAlert = () => {
                   size="large"
                   fullWidth
                   onClick={handleStopAlert}
+                  disabled={loading}
                   sx={{ py: 1.5 }}
                 >
-                  Stop Emergency Alert
+                  {loading ? <CircularProgress size={24} color="inherit" /> : 'Stop Emergency Alert'}
                 </Button>
               )}
             </div>
@@ -225,7 +369,7 @@ const EmergencyAlert = () => {
         {(isAlertActive || acknowledgments.length > 0) && (
           <div className="mt-12 bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Alert Status</h2>
-            {loading ? (
+            {loading && !friends.length ? (
               <div className="flex justify-center py-4">
                 <CircularProgress />
               </div>
@@ -234,6 +378,12 @@ const EmergencyAlert = () => {
                 {error && (
                   <Alert severity="error" sx={{ mb: 2 }}>
                     {error}
+                  </Alert>
+                )}
+                
+                {isAlertActive && (
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Emergency alert is active. Your trusted contacts are being notified.
                   </Alert>
                 )}
                 

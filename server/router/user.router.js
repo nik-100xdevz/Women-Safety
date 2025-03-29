@@ -41,7 +41,7 @@ userRouter.route('/friend-requests/:requestId').delete(jwtVerify, cancelFriendRe
 userRouter.route('/friends/:friendId').delete(jwtVerify, removeFriend)
 
 // Emergency alert routes
-userRouter.route('/emergency-alerts/start').post(jwtVerify, startEmergencyAlert)
+userRouter.route('/emergency-alerts/start').post(jwtVerify,startEmergencyAlert)
 userRouter.route('/emergency-alerts/stop').post(jwtVerify, stopEmergencyAlert)
 userRouter.route('/emergency-alerts/acknowledge').post(jwtVerify, acknowledgeAlert)
 

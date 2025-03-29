@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Button, Typography, List, ListItem, ListItemText, ListItemSecondaryAction, Alert, CircularProgress } from '@mui/material';
+import { Typography, List, ListItem, ListItemText, ListItemSecondaryAction, Alert, CircularProgress } from '@mui/material';
 import { getFriends, sendEmergencyAlert, stopEmergencyAlert, acknowledgeAlert } from '../services/api';
 import { registerServiceWorker, requestNotificationPermission, subscribeToPushNotifications, startEmergencyAlert, stopEmergencyAlert as stopServiceWorkerAlert, storeAuthToken } from '../services/serviceWorkerUtils';
 
@@ -45,23 +45,22 @@ const Emergency = () => {
     
     navigator.serviceWorker.addEventListener('message', handleMessage);
     
-    // Set up a refresh interval when alert is active
-    let refreshInterval = null;
+    // Set up polling for friends status if alert is active
+    let interval;
     if (isAlertActive) {
-      refreshInterval = setInterval(() => {
-        fetchFriends();
-      }, 5000); // Refresh every 5 seconds
+      interval = setInterval(fetchFriends, 10000); // Poll every 10 seconds
     }
     
     return () => {
       navigator.serviceWorker.removeEventListener('message', handleMessage);
-      if (refreshInterval) clearInterval(refreshInterval);
+      if (interval) clearInterval(interval);
     };
   }, [isAlertActive]);
 
   const setupServiceWorker = async () => {
     try {
-      setAlertSetupComplete(false);
+      setLoading(true);
+      setError(null);
       
       // Register service worker
       let registration;
@@ -81,9 +80,15 @@ const Emergency = () => {
         // Request permission and subscribe if granted
         if (permission === 'granted') {
           try {
-            await subscribeToPushNotifications();
+            const subscription = await subscribeToPushNotifications();
+            if (!subscription) {
+              console.warn('Push subscription failed or was rejected. Emergency alerts may still work with basic notifications.');
+              // Show a warning to the user but don't block functionality
+              setError('Push notifications setup had issues. Emergency alerts will use basic notifications instead.');
+            }
           } catch (subError) {
             console.warn('Push subscription failed, but we can continue with basic notifications:', subError);
+            setError('Push notifications setup failed. Emergency alerts will use basic notifications instead.');
           }
         }
       }
@@ -116,22 +121,41 @@ const Emergency = () => {
       setError('Failed to set up notifications. Basic features will still work.');
       // Mark as complete anyway so user can use basic features
       setAlertSetupComplete(true);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleRequestPermission = async () => {
     try {
+      setLoading(true);
+      setError(null);
+      
       const granted = await requestNotificationPermission();
       setNotificationPermission(granted);
       
       if (granted) {
-        // Re-register service worker after permission is granted
-        await registerServiceWorker();
-        await subscribeToPushNotifications();
+        try {
+          // Re-register service worker after permission is granted
+          await registerServiceWorker();
+          const subscription = await subscribeToPushNotifications();
+          
+          if (!subscription) {
+            console.warn('Push subscription failed but permission was granted. Basic notifications will still work.');
+            setError('Push notifications could not be fully configured, but basic notifications will work.');
+          } else {
+            setError(null); // Clear any previous errors on success
+          }
+        } catch (setupError) {
+          console.error('Error setting up notifications after permission granted:', setupError);
+          setError('Push notifications setup failed, but basic notifications will still work.');
+        }
       }
     } catch (error) {
       console.error('Error requesting notification permission:', error);
       setError('Failed to request notification permission');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -174,7 +198,6 @@ const Emergency = () => {
     try {
       setLoading(true);
       setError(null);
-      
       // Send alert to server
       const response = await sendEmergencyAlert();
       console.log('Alert started successfully:', response);
@@ -303,113 +326,83 @@ const Emergency = () => {
         transition={{ duration: 0.6 }}
         className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12"
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Alert Your Friends - Replacing WhatsApp Location */}
-          <motion.div 
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3 mt-12">
+          {/* Emergency Alert */}
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="bg-white rounded-lg shadow-lg p-6"
+            className="bg-white rounded-lg shadow-lg overflow-hidden"
           >
-            <div className="text-center">
-              <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.157 2 5.34 2 5.528v8.944c0 .188.056.37.166.528C3.937 16.735 6.817 18 10 18s6.063-1.265 7.834-3.028c.11-.158.166-.34.166-.528V5.528c0-.188-.056-.37-.166-.528A11.954 11.954 0 0110 1.944zM11 14a1 1 0 11-2 0 1 1 0 012 0zm0-7a1 1 0 10-2 0v3a1 1 0 102 0V7z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Alert Your Friends</h2>
-              <p className="text-gray-600 mb-4">Send emergency alerts to your trusted contacts</p>
-              
-              {!notificationPermission && (
-                <div className="mb-4">
-                  <Alert severity="warning" sx={{ mb: 2 }}>
-                    Notification permission is required for this feature to work properly.
-                  </Alert>
-                  <Button 
-                    variant="outlined" 
-                    color="primary" 
-                    onClick={handleRequestPermission}
-                    sx={{ mb: 2 }}
-                    fullWidth
-                  >
-                    Allow Notifications
-                  </Button>
-                </div>
-              )}
-              
-              {!isAlertActive ? (
-                <Button
-                  variant="contained"
-                  color="error"
-                  size="large"
-                  fullWidth
-                  onClick={handleStartAlert}
-                  disabled={loading}
-                  sx={{ py: 1.5 }}
-                >
-                  {loading ? <CircularProgress size={24} color="inherit" /> : 'Start Emergency Alert'}
-                </Button>
-              ) : (
-                <Button
-                  variant="contained"
-                  color="primary"
-                  size="large"
-                  fullWidth
-                  onClick={handleStopAlert}
-                  disabled={loading}
-                  sx={{ py: 1.5 }}
-                >
-                  {loading ? <CircularProgress size={24} color="inherit" /> : 'Stop Emergency Alert'}
-                </Button>
-              )}
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Emergency Alert</h3>
+              <p className="text-gray-600 mb-4">Send an immediate emergency alert to your trusted contacts with your location.</p>
+              <Link
+                to="/emergency/alert"
+                className="inline-block bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700 transition-colors duration-200"
+              >
+                Send Alert
+              </Link>
             </div>
           </motion.div>
 
-          {/* Live Location Sharing */}
-          <motion.div 
+          {/* Live Location Share */}
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="bg-white rounded-lg shadow-lg p-6"
+            className="bg-white rounded-lg shadow-lg overflow-hidden"
           >
-            <Link to="/emergency/live-location" className="block">
-              <div className="text-center">
-                <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-                  <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Live Location Sharing</h2>
-                <p className="text-gray-600">Share your real-time location with trusted contacts</p>
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-full bg-pink-100 flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-pink-600" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                </svg>
               </div>
-            </Link>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Live Location</h3>
+              <p className="text-gray-600 mb-4">Share your real-time location with trusted contacts for your safety.</p>
+              <Link
+                to="/emergency/live-location"
+                className="inline-block bg-pink-600 text-white py-2 px-4 rounded hover:bg-pink-700 transition-colors duration-200"
+              >
+                Share Location
+              </Link>
+            </div>
           </motion.div>
 
-          {/* Emergency Alert */}
-          <motion.div 
+          {/* Share Live Location Link */}
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.25 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-            className="bg-white rounded-lg shadow-lg p-6"
+            className="bg-white rounded-lg shadow-lg overflow-hidden"
           >
-            <Link to="/emergency/alert" className="block">
-              <div className="text-center">
-                <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                  <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Emergency Alert</h2>
-                <p className="text-gray-600">Send emergency alerts with your location to trusted contacts</p>
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-600" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
+                </svg>
               </div>
-            </Link>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Share Live Location</h3>
+              <p className="text-gray-600 mb-4">Generate a shareable link that allows others to track your location in real time.</p>
+              <Link
+                to="/emergency/share-location"
+                className="inline-block bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700 transition-colors duration-200"
+              >
+                Create Shareable Link
+              </Link>
+            </div>
           </motion.div>
 
-          {/* Incident Reporting */}
+          {/* Report an Incident */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}

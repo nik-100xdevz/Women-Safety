@@ -12,6 +12,8 @@ import Emergency from './pages/Emergency';
 import ReportIncident from './pages/ReportIncident'
 import IncidentDetail from './pages/IncidentDetail'
 import LiveLocation from './pages/LiveLocation'
+import ShareLiveLocation from './pages/ShareLiveLocation'
+import SharedLocationView from './pages/SharedLocationView'
 import EmergencyAlert from './pages/EmergencyAlert'
 import Layout from "./components/Layout";
 import MyProfile from './pages/MyProfile';
@@ -34,6 +36,8 @@ function App() {
           <Route path="/emergency" element={<Emergency />} />
           <Route path="/emergency/alert" element={<EmergencyAlert />} />
           <Route path="/emergency/live-location" element={<LiveLocation />} />
+          <Route path="/emergency/share-location" element={<ShareLiveLocation />} />
+          <Route path="/emergency/shared-location/:roomId" element={<SharedLocationView />} />
           <Route path="/emergency/report-incident" element={<ReportIncident/>} />
           <Route path="/emergency/report-incident/:id" element={<IncidentDetail/>} />
           <Route path="/emergency/chat" element={<ChatWithFriends/>} />

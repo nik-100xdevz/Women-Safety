@@ -124,7 +124,14 @@ export const subscribeToPushNotifications = async () => {
   }
   
   try {
-    const registration = await navigator.serviceWorker.ready;
+    // Wait for service worker to be ready with a timeout
+    const registration = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Service worker registration timed out')), 5000)
+      )
+    ]);
+    
     console.log('Service worker ready for push subscription');
     
     // Check for existing subscription
@@ -134,25 +141,47 @@ export const subscribeToPushNotifications = async () => {
       console.log('No existing subscription found, creating new one...');
       
       // Get server's public key for VAPID
-      // In a real application, this would be fetched from the server
       const publicKey = 'BFGSlIq1Ts0JGELUd-QCyUVMwP--TccLFHHc4gfU-N3VfUzQYvifvrcd3VZkxW5bj-TDa6cB7Y39MBJvYdUXvtM';
       
-      try {
-        // Convert public key to Uint8Array
-        const applicationServerKey = urlBase64ToUint8Array(publicKey);
-        
-        // Try to create new subscription
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: applicationServerKey
-        });
-        console.log('Push subscription created successfully');
-      } catch (subscribeError) {
-        console.error('Failed to create push subscription:', subscribeError);
-        
-        // For development purposes, we can continue without push subscription
-        console.warn('Continuing without push subscription - emergency alerts may not work fully');
-        return null;
+      // Convert public key to Uint8Array
+      const applicationServerKey = urlBase64ToUint8Array(publicKey);
+      
+      // Try to create new subscription with retries
+      let retryCount = 0;
+      const maxRetries = 2;
+      
+      while (retryCount <= maxRetries) {
+        try {
+          subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: applicationServerKey
+          });
+          console.log('Push subscription created successfully');
+          break; // Exit the retry loop on success
+        } catch (subscribeError) {
+          retryCount++;
+          
+          // Check if we should retry or give up
+          if (retryCount > maxRetries) {
+            console.error('Failed to create push subscription after retries:', subscribeError);
+            
+            // For development purposes, we can continue without push subscription
+            console.warn('Continuing without push subscription - emergency alerts may not work fully');
+            return null;
+          }
+          
+          console.warn(`Push subscription attempt ${retryCount} failed, retrying...`);
+          
+          // Clean up any failed subscription before retrying
+          const existingSubs = await registration.pushManager.getSubscription();
+          if (existingSubs) {
+            await existingSubs.unsubscribe();
+            console.log('Cleaned up existing subscription before retry');
+          }
+          
+          // Short delay before retry
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       }
     } else {
       console.log('Using existing push subscription');

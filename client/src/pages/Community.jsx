@@ -1,25 +1,80 @@
 import React from 'react';
+import { motion } from 'framer-motion';
+
+// Animation variants for minimalistic animations
+const fadeInUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { duration: 0.6 }
+  }
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.2
+    }
+  }
+};
 
 const Community = () => {
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
-      <div className="pt-32 pb-16 bg-pink-50">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.8 }}
+        className="pt-32 pb-16 bg-pink-50"
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-4xl font-bold text-gray-900 text-center">Community Support</h1>
-          <p className="mt-4 text-xl text-gray-600 text-center">
+          <motion.h1 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="text-4xl font-bold text-gray-900 text-center"
+          >
+            Community Support
+          </motion.h1>
+          <motion.p 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
+            className="mt-4 text-xl text-gray-600 text-center"
+          >
             Connect with organizations and communities dedicated to women's safety and empowerment
-          </p>
+          </motion.p>
         </div>
-      </div>
+      </motion.div>
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* NGOs Section */}
-        <section className="mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 mb-8">Non-Governmental Organizations</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div className="bg-white rounded-lg shadow-lg p-6">
+        <motion.section 
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-100px" }}
+          variants={fadeInUp}
+          className="mb-16"
+        >
+          <motion.h2 
+            variants={fadeInUp}
+            className="text-3xl font-bold text-gray-900 mb-8"
+          >
+            Non-Governmental Organizations
+          </motion.h2>
+          <motion.div 
+            variants={staggerContainer}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+          >
+            <motion.div variants={fadeInUp} className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">Akshara Centre</h3>
               <p className="text-gray-600 mb-4">
                 Working towards gender equality and women's rights through education and advocacy.
@@ -31,8 +86,8 @@ const Community = () => {
                   Learn More →
                 </a>
               </div>
-            </div>
-            <div className="bg-white rounded-lg shadow-lg p-6">
+            </motion.div>
+            <motion.div variants={fadeInUp} className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">Aarti for Girls</h3>
               <p className="text-gray-600 mb-4">
                 Empowering girls through education and skill development programs.
@@ -44,8 +99,8 @@ const Community = () => {
                   Learn More →
                 </a>
               </div>
-            </div>
-            <div className="bg-white rounded-lg shadow-lg p-6">
+            </motion.div>
+            <motion.div variants={fadeInUp} className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">Sakshi</h3>
               <p className="text-gray-600 mb-4">
                 Providing support and rehabilitation for survivors of violence.
@@ -57,15 +112,32 @@ const Community = () => {
                   Learn More →
                 </a>
               </div>
-            </div>
-          </div>
-        </section>
+            </motion.div>
+          </motion.div>
+        </motion.section>
 
         {/* Online Forums Section */}
-        <section className="mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 mb-8">Online Support Forums</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-white rounded-lg shadow-lg p-6">
+        <motion.section 
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-100px" }}
+          variants={fadeInUp}
+          className="mb-16"
+        >
+          <motion.h2 
+            variants={fadeInUp}
+            className="text-3xl font-bold text-gray-900 mb-8"
+          >
+            Online Support Forums
+          </motion.h2>
+          <motion.div 
+            variants={staggerContainer}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            className="grid grid-cols-1 md:grid-cols-2 gap-8"
+          >
+            <motion.div variants={fadeInUp} className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-2xl font-semibold text-gray-900 mb-4">Discussion Groups</h3>
               <ul className="space-y-4">
                 <li className="flex items-start">
@@ -99,8 +171,8 @@ const Community = () => {
                   </div>
                 </li>
               </ul>
-            </div>
-            <div className="bg-white rounded-lg shadow-lg p-6">
+            </motion.div>
+            <motion.div variants={fadeInUp} className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-2xl font-semibold text-gray-900 mb-4">Support Groups</h3>
               <ul className="space-y-4">
                 <li className="flex items-start">
@@ -134,15 +206,32 @@ const Community = () => {
                   </div>
                 </li>
               </ul>
-            </div>
-          </div>
-        </section>
+            </motion.div>
+          </motion.div>
+        </motion.section>
 
         {/* Government Organizations Section */}
-        <section className="mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 mb-8">Government Organizations</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-white rounded-lg shadow-lg p-6">
+        <motion.section 
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-100px" }}
+          variants={fadeInUp}
+          className="mb-16"
+        >
+          <motion.h2 
+            variants={fadeInUp}
+            className="text-3xl font-bold text-gray-900 mb-8"
+          >
+            Government Organizations
+          </motion.h2>
+          <motion.div 
+            variants={staggerContainer}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            className="grid grid-cols-1 md:grid-cols-2 gap-8"
+          >
+            <motion.div variants={fadeInUp} className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-2xl font-semibold text-gray-900 mb-4">National Commission for Women</h3>
               <p className="text-gray-600 mb-4">
                 Statutory body for women's rights and safety in India.
@@ -154,8 +243,8 @@ const Community = () => {
                   Visit Website →
                 </a>
               </div>
-            </div>
-            <div className="bg-white rounded-lg shadow-lg p-6">
+            </motion.div>
+            <motion.div variants={fadeInUp} className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-2xl font-semibold text-gray-900 mb-4">Women and Child Development Department</h3>
               <p className="text-gray-600 mb-4">
                 Government department focused on women's welfare and child development.
@@ -167,20 +256,44 @@ const Community = () => {
                   Visit Website →
                 </a>
               </div>
-            </div>
-          </div>
-        </section>
+            </motion.div>
+          </motion.div>
+        </motion.section>
 
         {/* Join Community Section */}
-        <section className="bg-pink-50 rounded-lg p-8 text-center">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Join Our Community</h2>
-          <p className="text-xl text-gray-600 mb-8">
+        <motion.section 
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7 }}
+          viewport={{ once: true }}
+          className="bg-pink-50 rounded-lg p-8 text-center"
+        >
+          <motion.h2 
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+            viewport={{ once: true }}
+            className="text-3xl font-bold text-gray-900 mb-4"
+          >
+            Join Our Community
+          </motion.h2>
+          <motion.p 
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            transition={{ delay: 0.4, duration: 0.5 }}
+            viewport={{ once: true }}
+            className="text-xl text-gray-600 mb-8"
+          >
             Connect with others, share experiences, and make a difference
-          </p>
-          <button className="bg-pink-600 text-white px-8 py-3 rounded-md text-lg font-medium hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500">
+          </motion.p>
+          {/* <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="bg-pink-600 text-white px-8 py-3 rounded-md text-lg font-medium hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
+          >
             Sign Up Now
-          </button>
-        </section>
+          </motion.button> */}
+        </motion.section>
       </div>
     </div>
   );

@@ -14,7 +14,7 @@ const vapidKeys = {
 };
 
 webpush.setVapidDetails(
-  'mailto:test@example.com',  // Change this to your email
+  'mailto:womensafety@example.com',  // Updated email for better identification
   vapidKeys.publicKey,
   vapidKeys.privateKey
 );
@@ -291,9 +291,7 @@ export const removeFriend = async (req, res) => {
 
 // Emergency Alert functions
 export const startEmergencyAlert = async (req, res) => {
-  try {
-    console.log('Starting emergency alert for user:', req.userId);
-    
+  try { 
     const user = await User.findById(req.userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -322,9 +320,6 @@ export const startEmergencyAlert = async (req, res) => {
       }))
     });
     
-    console.log('Created new emergency alert:', emergencyAlert._id);
-    console.log('Recipients:', emergencyAlert.recipients.length);
-
     // Start sending notifications to friends
     startNotificationInterval(emergencyAlert._id, user.friends);
 
@@ -366,8 +361,9 @@ export const stopEmergencyAlert = async (req, res) => {
     await alert.save();
 
     // Stop sending notifications
+    console.log("Walla walla habibi")
     stopNotificationInterval(alert._id);
-    
+
     console.log('Emergency alert stopped:', alert._id);
 
     res.json({ 
@@ -437,7 +433,7 @@ export const acknowledgeAlert = async (req, res) => {
     alert.recipients[recipientIndex].acknowledged = true;
     alert.recipients[recipientIndex].acknowledgedAt = new Date();
     await alert.save();
-    
+
     console.log('Alert acknowledged by user:', req.userId);
 
     // Notify the sender that this recipient has acknowledged
@@ -487,10 +483,8 @@ export const savePushSubscription = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-
     user.pushSubscription = subscription;
-    await user.save();
-    
+   await user.save();
     console.log('Push subscription saved successfully');
 
     res.json({ message: 'Push subscription saved successfully' });
@@ -502,7 +496,6 @@ export const savePushSubscription = async (req, res) => {
 
 // Helper function to start notification interval
 const startNotificationInterval = (alertId, recipients) => {
-  console.log('Starting notification interval for alert:', alertId);
   
   const interval = setInterval(async () => {
     try {
@@ -511,7 +504,7 @@ const startNotificationInterval = (alertId, recipients) => {
         select: 'username'
       });
       
-      if (!alert || alert.status === 'stopped') {
+    if (!alert || alert.status === 'stopped') {
         console.log('Alert is stopped or not found, clearing interval');
         clearInterval(interval);
         return;
@@ -526,23 +519,80 @@ const startNotificationInterval = (alertId, recipients) => {
 
       if (!currentRecipients) {
         console.log('Could not find recipients, stopping interval');
-        clearInterval(interval);
-        return;
-      }
+      clearInterval(interval);
+      return;
+    }
 
-      // Send notifications to all unacknowledged recipients
+    // Send notifications to all unacknowledged recipients
       for (const recipient of currentRecipients.recipients) {
-        if (!recipient.acknowledged && recipient.user && recipient.user.pushSubscription) {
-          const senderName = alert.sender ? alert.sender.username : 'A friend';
-          const message = `${senderName} needs your help! EMERGENCY ALERT`;
-          sendPushNotification(recipient.user._id, message, recipient.user.pushSubscription);
+       
+        try {
+          // First verify recipient.user exists
+          if (!recipient.user) {
+            console.log("Recipient user not found or not properly populated");
+            continue;
+          }
+          
+          // Then check if not acknowledged and has valid subscription
+          if (!recipient.acknowledged) {
+            const senderName = alert.sender ? alert.sender.username : 'A friend';
+            const message = `${senderName} needs your help! EMERGENCY ALERT`;
+            
+            // First check if push subscription exists at all
+            if (!recipient.user.pushSubscription) {
+              console.log(`User ${recipient.user._id} has no push subscription - skipping notification`);
+              continue;
+            }
+            
+            // Then verify that each required field exists
+            const subscription = recipient.user.pushSubscription.subscription;
+            // Check if keys object exists
+            if (!subscription.keys) {
+              console.log(`User ${recipient.user._id} has invalid push subscription (no keys object) - skipping notification`);
+              continue;
+            }
+            
+            // Log subscription details in a safe way
+            try {
+             
+            } catch (logError) {
+              console.error("Error logging subscription details:", logError);
+            }
+            
+            // Validate subscription format - each check is separate to avoid undefined errors
+            if (!subscription.endpoint) {
+              console.log(`User ${recipient.user._id} has invalid push subscription (missing endpoint) - skipping notification`);
+              continue;
+            }
+            if (!subscription.keys) {
+              console.log(`User ${recipient.user._id} has invalid push subscription (missing keys) - skipping notification`);
+              continue;
+            }
+            
+            if (!subscription.keys.p256dh) {
+              console.log(`User ${recipient.user._id} has invalid push subscription (missing p256dh key) - skipping notification`);
+              continue;
+            }
+            
+            if (!subscription.keys.auth) {
+              console.log(`User ${recipient.user._id} has invalid push subscription (missing auth key) - skipping notification`);
+              continue;
+            }
+            
+            console.log(`Sending notification to ${recipient.user._id}: ${message}`);
+            sendPushNotification(recipient.user._id, message, subscription);
+          }
+        } catch (recipientError) {
+          console.error("Error processing recipient notification:", recipientError);
+          // Continue with other recipients even if one fails
+          continue;
         }
       }
     } catch (error) {
       console.error('Error in notification interval:', error);
     }
   }, 2000); // Send every 2 seconds
-
+  console.log("We are here")
   // Store interval ID for cleanup
   notificationIntervals.set(alertId.toString(), interval);
 };
@@ -581,6 +631,14 @@ const sendPushNotification = async (userId, message, subscription = null) => {
       return;
     }
     
+    // Validate subscription format before sending
+    if (!subscription.endpoint || !subscription.keys || !subscription.keys.p256dh || !subscription.keys.auth) {
+      console.error(`Invalid push subscription format for user ${userId}`);
+      // Clean up the invalid subscription
+      await User.findByIdAndUpdate(userId, { pushSubscription: null });
+      return false;
+    }
+    
     // Prepare notification payload
     const payload = JSON.stringify({
       title: 'Emergency Alert',
@@ -607,29 +665,60 @@ const sendPushNotification = async (userId, message, subscription = null) => {
       requireInteraction: true // Notification will remain until user interacts with it
     });
     
-    // Send the push notification using web-push
-    try {
-      await webpush.sendNotification(subscription, payload);
-      console.log(`Push notification sent successfully to user ${userId}`);
-      return true;
-    } catch (pushError) {
-      // Handle specific push errors
-      if (pushError.statusCode === 410) {
-        console.log(`Removing invalid subscription for user ${userId}`);
-        try {
-          await User.findByIdAndUpdate(userId, { pushSubscription: null });
-        } catch (updateError) {
-          console.error(`Error removing invalid subscription: ${updateError}`);
+    // Send the push notification using web-push with retry
+    let retryCount = 0;
+    const maxRetries = 1; // Maximum 1 retry (so 2 attempts total)
+    
+    while (retryCount <= maxRetries) {
+      try {
+        await webpush.sendNotification(subscription, payload);
+        console.log(`Push notification sent successfully to user ${userId}`);
+        return true;
+      } catch (pushError) {
+        // Handle specific push errors
+        if (pushError.statusCode === 410) {
+          console.log(`Removing invalid subscription for user ${userId} - endpoint expired or not valid`);
+          try {
+            await User.findByIdAndUpdate(userId, { pushSubscription: null });
+          } catch (updateError) {
+            console.error(`Error removing invalid subscription: ${updateError}`);
+          }
+          return false; // No need to retry, subscription is gone
+        } else if (pushError.statusCode === 404) {
+          console.error(`Subscription not found for user ${userId}`);
+          return false; // No need to retry, endpoint not found
+        } else if (pushError.statusCode === 400) {
+          console.error(`Invalid request to push service for user ${userId}: ${pushError.body}`);
+          return false; // No need to retry, request is invalid
+        } else if (pushError.statusCode === 429) {
+          console.error(`Too many requests to push service for user ${userId}`);
+          retryCount++;
+          if (retryCount <= maxRetries) {
+            // Wait longer for rate limit errors
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            continue;
+          }
+          return false;
+        } else if (pushError.statusCode === 413) {
+          console.error(`Payload too large for push service for user ${userId}`);
+          return false; // No need to retry, payload is too large
+        } else {
+          console.error(`Push service error for user ${userId}: ${pushError.message}`);
+          
+          // For other errors, attempt retry if we haven't reached the limit
+          retryCount++;
+          if (retryCount <= maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            continue;
+          }
         }
-      } else if (pushError.statusCode === 404) {
-        console.error(`Subscription not found for user ${userId}`);
-      } else if (pushError.statusCode === 400) {
-        console.error(`Invalid request to push service for user ${userId}: ${pushError.body}`);
-      } else {
-        console.error(`Push service error for user ${userId}: ${pushError.message}`);
+        
+        // If we get here, we've exhausted retries or encountered a non-retriable error
+        return false;
       }
-      throw pushError; // Re-throw for caller to handle
     }
+    
+    return false; // Default if we somehow exit the loop without returning
   } catch (error) {
     console.error(`Error sending push notification to user ${userId}:`, error);
     // If subscription is invalid (gone), remove it from the user

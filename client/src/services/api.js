@@ -144,15 +144,23 @@ export const removeFriend = async (friendId) => {
 // Emergency Alert APIs
 export const sendEmergencyAlert = async () => {
   const response = await api.post('/user/emergency-alerts/start');
+  console.log("response of the send",response.data)
   return response.data;
 };
 
 export const stopEmergencyAlert = async () => {
   const response = await api.post('/user/emergency-alerts/stop');
+  console.log("Stop emergency alert response:", response.data);
   return response.data;
 };
 
 export const acknowledgeAlert = async (alertId) => {
+  if (!alertId) {
+    console.error('Cannot acknowledge: alertId is required');
+    throw new Error('alertId is required to acknowledge an alert');
+  }
+  
+  console.log('Acknowledging alert with ID:', alertId);
   const response = await api.post('/user/emergency-alerts/acknowledge', { alertId });
   return response.data;
 };

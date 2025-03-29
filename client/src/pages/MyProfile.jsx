@@ -89,10 +89,7 @@ const MyProfile = () => {
               <h2 className="text-2xl font-bold text-gray-900">{user.username}</h2>
               <p className="text-gray-500">{user.email}</p>
             </div>
-            <div className='text-gray-500'>
-
-             Your chat id <span className='text-black font-bold'>{user._id}</span>
-            </div>
+            
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -119,6 +116,19 @@ const MyProfile = () => {
               <h3 className="text-lg font-semibold text-gray-900 mb-2">New Report</h3>
               <p className="text-gray-600">Create a new incident report</p>
             </button>
+          </div>
+
+          {/* Share Live Location */}
+          <div className="mt-6">
+            <Link
+              to="/emergency/share-location"
+              className="flex justify-center items-center bg-pink-600 text-white py-3 px-6 rounded-md hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 transition-colors duration-200"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+              </svg>
+              Share Live Location
+            </Link>
           </div>
         </motion.div>
 
