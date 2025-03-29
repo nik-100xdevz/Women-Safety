@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate,Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { authService } from '../services/api';
+import FriendManagement from '../components/FriendManagement';
 
 const MyProfile = () => {
   const navigate = useNavigate();
@@ -88,6 +89,10 @@ const MyProfile = () => {
               <h2 className="text-2xl font-bold text-gray-900">{user.username}</h2>
               <p className="text-gray-500">{user.email}</p>
             </div>
+            <div className='text-gray-500'>
+
+             Your chat id <span className='text-black font-bold'>{user._id}</span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -116,6 +121,12 @@ const MyProfile = () => {
             </button>
           </div>
         </motion.div>
+
+        {/* Friend Management */}
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Friends & Connections</h2>
+          <FriendManagement />
+        </div>
 
         {/* Back Button */}
         <div className="mt-8 text-center">

@@ -1,8 +1,269 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
+import { Button, Typography, List, ListItem, ListItemText, ListItemSecondaryAction, Alert, CircularProgress } from '@mui/material';
+import { getFriends, sendEmergencyAlert, stopEmergencyAlert, acknowledgeAlert } from '../services/api';
+import { registerServiceWorker, requestNotificationPermission, subscribeToPushNotifications, startEmergencyAlert, stopEmergencyAlert as stopServiceWorkerAlert, storeAuthToken } from '../services/serviceWorkerUtils';
 
 const Emergency = () => {
+  const [isAlertActive, setIsAlertActive] = useState(false);
+  const [friends, setFriends] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [acknowledgments, setAcknowledgments] = useState([]);
+  const [notificationPermission, setNotificationPermission] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [alertSetupComplete, setAlertSetupComplete] = useState(false);
+
+  useEffect(() => {
+    setupServiceWorker();
+    fetchFriends();
+    
+    // Check if alert is already active (in case of page refresh)
+    const checkAlertStatus = async () => {
+      try {
+        const response = await getFriends();
+        const activeAlert = response.activeAlert || false;
+        setIsAlertActive(activeAlert);
+      } catch (err) {
+        console.error('Error checking alert status:', err);
+      }
+    };
+    
+    checkAlertStatus();
+    
+    // Add event listener for messages from service worker
+    const handleMessage = (event) => {
+      if (event.data && event.data.type === 'alert_acknowledged') {
+        console.log('Received acknowledgment from service worker:', event.data);
+        // Add the acknowledged alert to our state
+        setAcknowledgments(prev => [...prev, event.data.alertId]);
+        // Refresh friends list to get updated acknowledgment status
+        fetchFriends();
+      }
+    };
+    
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    
+    // Set up a refresh interval when alert is active
+    let refreshInterval = null;
+    if (isAlertActive) {
+      refreshInterval = setInterval(() => {
+        fetchFriends();
+      }, 5000); // Refresh every 5 seconds
+    }
+    
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleMessage);
+      if (refreshInterval) clearInterval(refreshInterval);
+    };
+  }, [isAlertActive]);
+
+  const setupServiceWorker = async () => {
+    try {
+      setAlertSetupComplete(false);
+      
+      // Register service worker
+      let registration;
+      try {
+        registration = await registerServiceWorker();
+        console.log('Service worker registration successful', registration);
+      } catch (regError) {
+        console.error('Service worker registration failed:', regError);
+        // We'll continue even without service worker for basic functionality
+      }
+      
+      // Check permission status
+      if ('Notification' in window) {
+        const permission = Notification.permission;
+        setNotificationPermission(permission === 'granted');
+        
+        // Request permission and subscribe if granted
+        if (permission === 'granted') {
+          try {
+            await subscribeToPushNotifications();
+          } catch (subError) {
+            console.warn('Push subscription failed, but we can continue with basic notifications:', subError);
+          }
+        }
+      }
+      
+      // Store token in IndexedDB for service worker
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          await storeAuthToken(token);
+        } catch (tokenError) {
+          console.warn('Failed to store auth token:', tokenError);
+        }
+      }
+      
+      // Get current user ID from localStorage
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        try {
+          const user = JSON.parse(userData);
+          setCurrentUserId(user._id);
+        } catch (error) {
+          console.error('Error parsing user data:', error);
+        }
+      }
+      
+      // Mark setup as complete, even if some parts failed
+      setAlertSetupComplete(true);
+    } catch (error) {
+      console.error('Error setting up service worker:', error);
+      setError('Failed to set up notifications. Basic features will still work.');
+      // Mark as complete anyway so user can use basic features
+      setAlertSetupComplete(true);
+    }
+  };
+
+  const handleRequestPermission = async () => {
+    try {
+      const granted = await requestNotificationPermission();
+      setNotificationPermission(granted);
+      
+      if (granted) {
+        // Re-register service worker after permission is granted
+        await registerServiceWorker();
+        await subscribeToPushNotifications();
+      }
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
+      setError('Failed to request notification permission');
+    }
+  };
+
+  const fetchFriends = async () => {
+    try {
+      setLoading(true);
+      const response = await getFriends();
+      setFriends(response.friends || []);
+      console.log('Friends loaded:', response.friends);
+      
+      // Check for active alerts from the response
+      if (response.activeAlert) {
+        setIsAlertActive(true);
+        
+        // Update acknowledgments state if available
+        if (response.acknowledgments && Array.isArray(response.acknowledgments)) {
+          setAcknowledgments(response.acknowledgments);
+        }
+      }
+    } catch (err) {
+      setError('Failed to fetch friends');
+      console.error('Error fetching friends:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStartAlert = async () => {
+    if (!notificationPermission) {
+      alert('Please allow notifications to use this feature');
+      await handleRequestPermission();
+      if (!notificationPermission) return;
+    }
+
+    if (!alertSetupComplete) {
+      alert('Still setting up notifications. Please wait a moment and try again.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Send alert to server
+      const response = await sendEmergencyAlert();
+      console.log('Alert started successfully:', response);
+      
+      if (response.friends) {
+        setFriends(response.friends);
+      }
+      
+      // Start local notifications through service worker
+      if (currentUserId) {
+        const alertId = response.alertId || currentUserId;
+        try {
+          const success = await startEmergencyAlert(alertId);
+          console.log('Service worker alert started:', success);
+          
+          if (!success) {
+            console.warn('Service worker alerts may not be working - falling back to basic notification');
+            // Show a fallback notification
+            if (Notification.permission === 'granted') {
+              new Notification('Emergency Alert Active', {
+                body: 'Your emergency alert is active. Your friends will be notified.',
+                icon: '/logo192.png'
+              });
+            }
+          }
+        } catch (swError) {
+          console.error('Error with service worker alerts:', swError);
+          // Show a fallback notification
+          if (Notification.permission === 'granted') {
+            new Notification('Emergency Alert Active', {
+              body: 'Your emergency alert is active, but there may be issues with notifications.',
+              icon: '/logo192.png'
+            });
+          }
+        }
+      }
+      
+      setIsAlertActive(true);
+      setAcknowledgments([]);
+      
+      // Begin periodic refresh of friend statuses
+      fetchFriends();
+    } catch (err) {
+      setError('Failed to start emergency alert: ' + (err.message || 'Unknown error'));
+      console.error('Error starting alert:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStopAlert = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Stop alert on server
+      const response = await stopEmergencyAlert();
+      console.log('Alert stopped successfully:', response);
+      
+      // Stop local notifications
+      const success = await stopServiceWorkerAlert();
+      console.log('Service worker alert stopped:', success);
+      
+      setIsAlertActive(false);
+      
+      // Keep acknowledgments visible for a while after stopping
+      setTimeout(() => {
+        if (!isAlertActive) {
+          setAcknowledgments([]);
+        }
+      }, 10000); // Clear acknowledgments after 10 seconds
+      
+    } catch (err) {
+      setError('Failed to stop emergency alert: ' + (err.message || 'Unknown error'));
+      console.error('Error stopping alert:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAcknowledgeAlert = async (friendId) => {
+    try {
+      await acknowledgeAlert(friendId);
+      setAcknowledgments(prev => [...prev, friendId]);
+    } catch (err) {
+      console.error('Error acknowledging alert:', err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
@@ -43,7 +304,7 @@ const Emergency = () => {
         className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12"
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* WhatsApp Location Sharing */}
+          {/* Alert Your Friends - Replacing WhatsApp Location */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -51,17 +312,58 @@ const Emergency = () => {
             transition={{ duration: 0.6 }}
             className="bg-white rounded-lg shadow-lg p-6"
           >
-            <Link to="/emergency/whatsapp-location" className="block">
-              <div className="text-center">
-                <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                  <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.274.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564c.173.087.287.129.332.202.045.073.045.419-.1.824zm-3.423-14.416c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm.029 19.88c-1.161 0-2.305-.292-3.318-.844l-3.677.964.984-3.595c-.607-1.052-.927-2.246-.926-3.468.001-3.825 3.113-6.937 6.937-6.937 1.856.001 3.598.723 4.907 2.034 1.31 1.311 2.031 3.054 2.03 4.908-.001 3.825-3.113 6.938-6.937 6.938z"/>
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Share Location via WhatsApp</h2>
-                <p className="text-gray-600">Share your location with trusted contacts through WhatsApp</p>
+            <div className="text-center">
+              <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
               </div>
-            </Link>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Alert Your Friends</h2>
+              <p className="text-gray-600 mb-4">Send emergency alerts to your trusted contacts</p>
+              
+              {!notificationPermission && (
+                <div className="mb-4">
+                  <Alert severity="warning" sx={{ mb: 2 }}>
+                    Notification permission is required for this feature to work properly.
+                  </Alert>
+                  <Button 
+                    variant="outlined" 
+                    color="primary" 
+                    onClick={handleRequestPermission}
+                    sx={{ mb: 2 }}
+                    fullWidth
+                  >
+                    Allow Notifications
+                  </Button>
+                </div>
+              )}
+              
+              {!isAlertActive ? (
+                <Button
+                  variant="contained"
+                  color="error"
+                  size="large"
+                  fullWidth
+                  onClick={handleStartAlert}
+                  disabled={loading}
+                  sx={{ py: 1.5 }}
+                >
+                  {loading ? <CircularProgress size={24} color="inherit" /> : 'Start Emergency Alert'}
+                </Button>
+              ) : (
+                <Button
+                  variant="contained"
+                  color="primary"
+                  size="large"
+                  fullWidth
+                  onClick={handleStopAlert}
+                  disabled={loading}
+                  sx={{ py: 1.5 }}
+                >
+                  {loading ? <CircularProgress size={24} color="inherit" /> : 'Stop Emergency Alert'}
+                </Button>
+              )}
+            </div>
           </motion.div>
 
           {/* Live Location Sharing */}
@@ -128,6 +430,56 @@ const Emergency = () => {
             </Link>
           </motion.div>
         </div>
+
+        {/* Friend Alert Status */}
+        {(isAlertActive || acknowledgments.length > 0) && (
+          <div className="mt-12 bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Alert Status</h2>
+            {loading ? (
+              <div className="flex justify-center py-4">
+                <CircularProgress />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {error && (
+                  <Alert severity="error" sx={{ mb: 2 }}>
+                    {error}
+                  </Alert>
+                )}
+                
+                {friends.length === 0 ? (
+                  <Alert severity="info">
+                    You don't have any friends to alert. Add friends to use this feature.
+                  </Alert>
+                ) : (
+                  <List>
+                    {friends.map((friend) => (
+                      <ListItem key={friend._id} className="mb-2 bg-gray-50 rounded-lg">
+                        <ListItemText
+                          primary={friend.username}
+                          secondary={friend.email}
+                        />
+                        {isAlertActive && !acknowledgments.includes(friend._id) ? (
+                          <ListItemSecondaryAction>
+                            <Typography color="warning.main" sx={{ mr: 2, display: 'inline-block' }}>
+                              Waiting...
+                            </Typography>
+                          </ListItemSecondaryAction>
+                        ) : acknowledgments.includes(friend._id) && (
+                          <ListItemSecondaryAction>
+                            <Typography color="success.main">
+                              Alert Acknowledged
+                            </Typography>
+                          </ListItemSecondaryAction>
+                        )}
+                      </ListItem>
+                    ))}
+                  </List>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </motion.div>
     </div>
   );

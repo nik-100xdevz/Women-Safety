@@ -29,16 +29,24 @@ export const authService = {
     const response = await api.post('/user/login', credentials);
     if (response.data.token) {
       localStorage.setItem('token', response.data.token);
+      if (response.data.user) {
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+      }
     }
     return response.data;
   },
   
   logout: () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
   },
   
   getCurrentUser: async () => {
     const response = await api.get('/user/me');
+    return response.data;
+  },
+  getPublictUserInfo: async (userId) => {
+    const response = await api.get(`user/public/${userId}`);
     return response.data;
   }
 };
@@ -90,6 +98,69 @@ export const reportService = {
     const response = await api.get('/user/comments');
     return response.data;
   }
+};
+
+// Friend Request APIs
+export const getAllUsers = async () => {
+  const response = await api.get('/user/users');
+  return response.data;
+};
+
+export const getFriends = async () => {
+  const response = await api.get('/user/friends');
+  return response.data;
+};
+
+export const getFriendRequests = async () => {
+  const response = await api.get('/user/friend-requests');
+  return response.data;
+};
+
+export const sendFriendRequest = async (userId) => {
+  const response = await api.post('/user/friend-requests', { recipientId: userId });
+  return response.data;
+};
+
+export const acceptFriendRequest = async (requestId) => {
+  const response = await api.put(`/user/friend-requests/${requestId}/accept`);
+  return response.data;
+};
+
+export const rejectFriendRequest = async (requestId) => {
+  const response = await api.put(`/user/friend-requests/${requestId}/reject`);
+  return response.data;
+};
+
+export const cancelFriendRequest = async (requestId) => {
+  const response = await api.delete(`/user/friend-requests/${requestId}`);
+  return response.data;
+};
+
+export const removeFriend = async (friendId) => {
+  const response = await api.delete(`/user/friends/${friendId}`);
+  return response.data;
+};
+
+// Emergency Alert APIs
+export const sendEmergencyAlert = async () => {
+  const response = await api.post('/user/emergency-alerts/start');
+  return response.data;
+};
+
+export const stopEmergencyAlert = async () => {
+  const response = await api.post('/user/emergency-alerts/stop');
+  return response.data;
+};
+
+export const acknowledgeAlert = async (alertId) => {
+  const response = await api.post('/user/emergency-alerts/acknowledge', { alertId });
+  return response.data;
+};
+
+// Push Notification API
+export const savePushSubscription = async (subscription) => {
+  const response = await api.post('/user/push-subscription', { subscription });
+  return response.data;
 };
 
 export default api; 

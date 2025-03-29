@@ -25,7 +25,7 @@ const Signin = () => {
 
     try {
       await authService.login(formData);
-      navigate('/emergency'); // Redirect to emergency page after successful login
+      navigate('/emergency'); 
     } catch (err) {
       setError(err.response?.data?.msg || 'An error occurred during sign in');
     } finally {

@@ -14,6 +14,14 @@ const userSchema = new Schema({
     password:{
         type:String,
         required:true,
+    },
+    friends: [{
+        type: Schema.Types.ObjectId,
+        ref: 'User'
+    }],
+    pushSubscription: {
+        type: Object,
+        default: null
     }
 },{timestams:true})
 
