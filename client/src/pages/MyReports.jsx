@@ -105,7 +105,7 @@ const MyReports = () => {
             className="space-y-6"
           >
             {reports.map((report) => (
-              <Link to={`/emergency/report-incident/${report._id}`} >
+             
               <div
                 key={report._id}
                 className="bg-white rounded-lg shadow-lg p-6"
@@ -133,12 +133,12 @@ const MyReports = () => {
                 </div>
                 <p className="text-gray-600 mb-4">{report.incident}</p>
                 <button
+                  onClick={()=>{navigate(`/emergency/report-incident/${report._id}`)}}
                   className="text-pink-600 hover:text-pink-700 font-medium"
                 >
                   View Details →
                 </button>
               </div>
-              </Link>
             ))}
           </motion.div>
         )}

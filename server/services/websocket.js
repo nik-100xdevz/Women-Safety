@@ -171,6 +171,17 @@ class WebSocketService {
       return;
     }
 
+    // Handle comment events
+    if (message.type === 'comment_added' || message.type === 'comment_deleted') {
+      // Broadcast to all clients, not just room participants
+      this.broadcastToAll({
+        type: message.type,
+        reportId: message.reportId,
+        comment: message.comment
+      });
+      return;
+    }
+
     console.log('Broadcasting message to room:', roomId, 'participants:', room.participants);
 
     // Broadcast message to all participants in the room
@@ -185,6 +196,15 @@ class WebSocketService {
           message: message,
           timestamp: new Date().toISOString()
         }));
+      }
+    });
+  }
+
+  // Add new method to broadcast to all clients
+  broadcastToAll(message) {
+    this.clients.forEach((ws) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(message));
       }
     });
   }

@@ -257,10 +257,33 @@ const ShareLiveLocation = () => {
   
   // Handle stopping sharing and leaving room
   const handleStopSharing = () => {
+    // Stop location updates first
     socketService.stopSharingLocation();
+    
+    // Send notification that sharing is stopped
     socketService.leaveLocationShareRoom();
+    
+    // Clear any existing markers
+    if (mapInstanceRef.current) {
+      Object.values(markersRef.current).forEach(marker => marker.remove());
+      markersRef.current = {};
+    }
+    
+    // Navigate to emergency page
     navigate('/emergency');
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      socketService.stopSharingLocation();
+      socketService.leaveLocationShareRoom();
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-white">

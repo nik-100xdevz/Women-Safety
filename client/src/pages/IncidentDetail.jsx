@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { reportService } from '../services/api';
 import { authService } from '../services/api';
+import socketService, { useSocket } from '../services/socket';
 
 const IncidentDetail = () => {
   const { id } = useParams();
@@ -14,10 +15,34 @@ const IncidentDetail = () => {
   const [error, setError] = useState('');
   const [user, setUser] = useState(null);
 
+  // Initialize socket connection
+  const { socket, connected } = useSocket(user?._id);
+
   useEffect(() => {
     fetchIncident();
     fetchUser();
   }, [id]);
+
+  useEffect(() => {
+    if (!socket || !connected) return;
+
+    const handleMessage = (event) => {
+      const data = JSON.parse(event.data);
+      
+      if (data.type === 'comment_added' && data.reportId === id) {
+        // Add new comment to the list
+        setComment(prevComments => [...prevComments, data.comment]);
+      } else if (data.type === 'comment_deleted' && data.reportId === id) {
+        // Remove deleted comment from the list
+        setComment(prevComments => prevComments.filter(c => c._id !== data.comment._id));
+      }
+    };
+
+    socket.addEventListener('message', handleMessage);
+    return () => {
+      socket.removeEventListener('message', handleMessage);
+    };
+  }, [socket, connected, id]);
 
   const fetchIncident = async () => {
     try {
@@ -35,7 +60,6 @@ const IncidentDetail = () => {
       console.error('Error fetching incident:', err);
     } finally {
       setLoading(false);
-      console.log(comment)
     }
   };
   
