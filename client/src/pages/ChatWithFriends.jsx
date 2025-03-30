@@ -33,7 +33,7 @@ const ChatWithFriends = () => {
   }, [messages]);
 
   useEffect(() => {
-    // Cleanup WebSocket connection on component unmount
+
     return () => {
       if (ws) {
         ws.close();
@@ -132,7 +132,7 @@ const ChatWithFriends = () => {
         
         switch (data.type) {
           case 'room_created':
-            console.log('Room created:', data.roomId);
+           { console.log('Room created:', data.roomId);
             setRoomId(data.roomId);
             setMessages([]);
             // Add host to participants
@@ -140,10 +140,10 @@ const ChatWithFriends = () => {
             setParticipants(prev => ({
               ...prev,
               [currentUser.current.user._id]: hostName
-            }));
+            }));}
             break;
           case 'room_joined':
-            console.log('Room joined:', data.roomId);
+           { console.log('Room joined:', data.roomId);
             setRoomId(data.roomId);
             setMessages([]);
             setIsHost(false);
@@ -152,15 +152,15 @@ const ChatWithFriends = () => {
             for (const userId of data.participants) {
               participantNames[userId] = await fetchUserDetails(userId);
             }
-            setParticipants(participantNames);
+            setParticipants(participantNames);}
             break;
           case 'participant_joined':
-            console.log('New participant joined:', data.userId);
+         {   console.log('New participant joined:', data.userId);
             const newParticipantName = await fetchUserDetails(data.userId);
             setParticipants(prev => ({
               ...prev,
               [data.userId]: newParticipantName
-            }));
+            }));}
             break;
           case 'participant_left':
             console.log('Participant left:', data.userId);

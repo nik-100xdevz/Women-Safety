@@ -37,7 +37,7 @@ export const userLogin =  async(req, res) => {
     }
     if(userWithEmail.password == password){
       const token = jwt.sign({id:userWithEmail._id},config.jwt_secret,{expiresIn:'1d'})
-      return res.status(200).json({msg:"User has been logged in successfully",token})
+      return res.status(200).json({msg:"User has been logged in successfully",token,user:userWithEmail.username})
     }
     return res.status(401).json({msg:"Invalid creadentials"})
     
@@ -61,7 +61,6 @@ export const reportInfo = async(req,res)=>{
   }
 export const commentInfo = async(req,res)=>{
     const comment = await Comment.find({userId:req.userId}).populate('reportId')
-    console.log(comment)
     return res.status(200).json({msg:"here is user data",comment}) 
    
   }
@@ -109,7 +108,6 @@ export const getFriends = async (req, res) => {
       acknowledgments
     });
   } catch (error) {
-    console.error('Error fetching friends:', error);
     res.status(500).json({ message: 'Error fetching friends' });
   }
 };
@@ -304,7 +302,6 @@ export const startEmergencyAlert = async (req, res) => {
     });
     
     if (existingAlert) {
-      console.log('User already has an active alert:', existingAlert._id);
       return res.status(200).json({ 
         message: 'Emergency alert already active',
         alertId: existingAlert._id,
@@ -338,14 +335,12 @@ export const startEmergencyAlert = async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('Error starting emergency alert:', error);
     res.status(500).json({ message: 'Error starting emergency alert', error: error.message });
   }
 };
 
 export const stopEmergencyAlert = async (req, res) => {
   try {
-    console.log('Stopping emergency alert for user:', req.userId);
     
     const alert = await EmergencyAlert.findOne({
       sender: req.userId,
@@ -364,7 +359,6 @@ export const stopEmergencyAlert = async (req, res) => {
    
     stopNotificationInterval(alert._id);
 
-    console.log('Emergency alert stopped:', alert._id);
 
     res.json({ 
       message: 'Emergency alert stopped',
@@ -376,7 +370,6 @@ export const stopEmergencyAlert = async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('Error stopping emergency alert:', error);
     res.status(500).json({ message: 'Error stopping emergency alert', error: error.message });
   }
 };
@@ -384,13 +377,11 @@ export const stopEmergencyAlert = async (req, res) => {
 export const acknowledgeAlert = async (req, res) => {
   try {
     const { alertId, userId } = req.body;
-    console.log('Acknowledging alert:', alertId, 'From user:', req.userId);
     
     // Find the alert by ID
     const alert = await EmergencyAlert.findById(alertId);
 
     if (!alert) {
-      console.error('Could not find alert with ID:', alertId);
       return res.status(404).json({ message: 'Emergency alert not found' });
     }
 
@@ -400,11 +391,9 @@ export const acknowledgeAlert = async (req, res) => {
     );
 
     if (recipientIndex === -1) {
-      console.error('User', req.userId, 'is not a recipient of alert', alertId);
       
       // If the current user is the sender of this alert, try to find by userId (for direct acknowledgments)
       if (alert.sender.toString() === req.userId && userId) {
-        console.log('User is the sender, trying to acknowledge specific recipient:', userId);
         const targetRecipientIndex = alert.recipients.findIndex(
           r => r.user && r.user.toString() === userId
         );
@@ -434,7 +423,6 @@ export const acknowledgeAlert = async (req, res) => {
     alert.recipients[recipientIndex].acknowledgedAt = new Date();
     await alert.save();
 
-    console.log('Alert acknowledged by user:', req.userId);
 
     // Notify the sender that this recipient has acknowledged
     try {
@@ -445,7 +433,6 @@ export const acknowledgeAlert = async (req, res) => {
         const message = `${acknowledgerName} has acknowledged your emergency alert`;
         
         // Log the notification attempt
-        console.log('Sending acknowledgment notification to sender:', alert.sender, message);
         
         await sendPushNotification(
           alert.sender,
@@ -453,7 +440,6 @@ export const acknowledgeAlert = async (req, res) => {
         );
       }
     } catch (notifyError) {
-      console.error('Error notifying sender:', notifyError);
       // Continue despite notification error
     }
 
@@ -464,7 +450,6 @@ export const acknowledgeAlert = async (req, res) => {
       acknowledgedAt: alert.recipients[recipientIndex].acknowledgedAt
     });
   } catch (error) {
-    console.error('Error acknowledging alert:', error);
     res.status(500).json({ message: 'Error acknowledging alert', error: error.message });
   }
 };
@@ -473,7 +458,6 @@ export const acknowledgeAlert = async (req, res) => {
 export const savePushSubscription = async (req, res) => {
   try {
     const { subscription } = req.body;
-    console.log('Saving push subscription for user:', req.userId);
     
     if (!subscription) {
       return res.status(400).json({ message: 'Subscription data is required' });
@@ -485,11 +469,9 @@ export const savePushSubscription = async (req, res) => {
     }
     user.pushSubscription = subscription;
    await user.save();
-    console.log('Push subscription saved successfully');
 
     res.json({ message: 'Push subscription saved successfully' });
   } catch (error) {
-    console.error('Error saving push subscription:', error);
     res.status(500).json({ message: 'Error saving push subscription', error: error.message });
   }
 };
@@ -505,7 +487,6 @@ const startNotificationInterval = (alertId, recipients) => {
       });
       
     if (!alert || alert.status === 'stopped') {
-        console.log('Alert is stopped or not found, clearing interval');
         clearInterval(interval);
         return;
       }
@@ -518,7 +499,6 @@ const startNotificationInterval = (alertId, recipients) => {
         });
 
       if (!currentRecipients) {
-        console.log('Could not find recipients, stopping interval');
       clearInterval(interval);
       return;
     }
@@ -529,7 +509,6 @@ const startNotificationInterval = (alertId, recipients) => {
         try {
           // First verify recipient.user exists
           if (!recipient.user) {
-            console.log("Recipient user not found or not properly populated");
             continue;
           }
           
@@ -540,7 +519,6 @@ const startNotificationInterval = (alertId, recipients) => {
             
             // First check if push subscription exists at all
             if (!recipient.user.pushSubscription) {
-              console.log(`User ${recipient.user._id} has no push subscription - skipping notification`);
               continue;
             }
             
@@ -548,7 +526,6 @@ const startNotificationInterval = (alertId, recipients) => {
             const subscription = recipient.user.pushSubscription.subscription;
             // Check if keys object exists
             if (!subscription.keys) {
-              console.log(`User ${recipient.user._id} has invalid push subscription (no keys object) - skipping notification`);
               continue;
             }
             
@@ -556,43 +533,34 @@ const startNotificationInterval = (alertId, recipients) => {
             try {
              
             } catch (logError) {
-              console.error("Error logging subscription details:", logError);
             }
             
             // Validate subscription format - each check is separate to avoid undefined errors
             if (!subscription.endpoint) {
-              console.log(`User ${recipient.user._id} has invalid push subscription (missing endpoint) - skipping notification`);
               continue;
             }
             if (!subscription.keys) {
-              console.log(`User ${recipient.user._id} has invalid push subscription (missing keys) - skipping notification`);
               continue;
             }
             
             if (!subscription.keys.p256dh) {
-              console.log(`User ${recipient.user._id} has invalid push subscription (missing p256dh key) - skipping notification`);
               continue;
             }
             
             if (!subscription.keys.auth) {
-              console.log(`User ${recipient.user._id} has invalid push subscription (missing auth key) - skipping notification`);
               continue;
             }
             
-            console.log(`Sending notification to ${recipient.user._id}: ${message}`);
             sendPushNotification(recipient.user._id, message, subscription);
           }
         } catch (recipientError) {
-          console.error("Error processing recipient notification:", recipientError);
           // Continue with other recipients even if one fails
           continue;
         }
       }
     } catch (error) {
-      console.error('Error in notification interval:', error);
     }
   }, 2000); // Send every 2 seconds
-  console.log("We are here")
   // Store interval ID for cleanup
   notificationIntervals.set(alertId.toString(), interval);
 };
@@ -604,9 +572,7 @@ const stopNotificationInterval = (alertId) => {
   if (interval) {
     clearInterval(interval);
     notificationIntervals.delete(alertId.toString());
-    console.log('Interval cleared successfully');
   } else {
-    console.log('No interval found for this alert');
   }
 };
 
@@ -617,7 +583,6 @@ const notificationIntervals = new Map();
 const sendPushNotification = async (userId, message, subscription = null) => {
   try {
     // Log the intent to send notification
-    console.log(`Sending push notification to user ${userId}: ${message}`);
     
     // If no subscription is provided, get it from the database
     if (!subscription) {
@@ -626,13 +591,11 @@ const sendPushNotification = async (userId, message, subscription = null) => {
     }
     
     if (!subscription) {
-      console.log(`User ${userId} has no push subscription`);
       return;
     }
     
     // Validate subscription format before sending
     if (!subscription.endpoint || !subscription.keys || !subscription.keys.p256dh || !subscription.keys.auth) {
-      console.error(`Invalid push subscription format for user ${userId}`);
       // Clean up the invalid subscription
       await User.findByIdAndUpdate(userId, { pushSubscription: null });
       return false;
@@ -671,26 +634,20 @@ const sendPushNotification = async (userId, message, subscription = null) => {
     while (retryCount <= maxRetries) {
       try {
         await webpush.sendNotification(subscription, payload);
-        console.log(`Push notification sent successfully to user ${userId}`);
         return true;
       } catch (pushError) {
         // Handle specific push errors
         if (pushError.statusCode === 410) {
-          console.log(`Removing invalid subscription for user ${userId} - endpoint expired or not valid`);
           try {
             await User.findByIdAndUpdate(userId, { pushSubscription: null });
           } catch (updateError) {
-            console.error(`Error removing invalid subscription: ${updateError}`);
           }
           return false; // No need to retry, subscription is gone
         } else if (pushError.statusCode === 404) {
-          console.error(`Subscription not found for user ${userId}`);
           return false; // No need to retry, endpoint not found
         } else if (pushError.statusCode === 400) {
-          console.error(`Invalid request to push service for user ${userId}: ${pushError.body}`);
           return false; // No need to retry, request is invalid
         } else if (pushError.statusCode === 429) {
-          console.error(`Too many requests to push service for user ${userId}`);
           retryCount++;
           if (retryCount <= maxRetries) {
             // Wait longer for rate limit errors
@@ -699,10 +656,8 @@ const sendPushNotification = async (userId, message, subscription = null) => {
           }
           return false;
         } else if (pushError.statusCode === 413) {
-          console.error(`Payload too large for push service for user ${userId}`);
           return false; // No need to retry, payload is too large
         } else {
-          console.error(`Push service error for user ${userId}: ${pushError.message}`);
           
           // For other errors, attempt retry if we haven't reached the limit
           retryCount++;
@@ -719,16 +674,61 @@ const sendPushNotification = async (userId, message, subscription = null) => {
     
     return false; // Default if we somehow exit the loop without returning
   } catch (error) {
-    console.error(`Error sending push notification to user ${userId}:`, error);
     // If subscription is invalid (gone), remove it from the user
     if (error.statusCode === 410) {
-      console.log(`Removing invalid subscription for user ${userId}`);
       try {
         await User.findByIdAndUpdate(userId, { pushSubscription: null });
       } catch (updateError) {
-        console.error(`Error removing invalid subscription: ${updateError}`);
       }
     }
     return false;
+  }
+};
+
+export const updateProfile = async (req, res) => {
+  try {
+    const { username, email, password } = req.body;
+    const userId = req.userId;
+
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if new email is already taken by another user
+    if (email && email !== user.email) {
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        return res.status(400).json({ message: 'Email is already in use' });
+      }
+    }
+
+    // Check if new username is already taken by another user
+    if (username && username !== user.username) {
+      const existingUser = await User.findOne({ username });
+      if (existingUser) {
+        return res.status(400).json({ message: 'Username is already in use' });
+      }
+    }
+
+    // Update user fields
+    const updateFields = {};
+    if (username) updateFields.username = username;
+    if (email) updateFields.email = email;
+    if (password) updateFields.password = password;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateFields },
+      { new: true }
+    ).select('-password');
+
+    return res.status(200).json({
+      message: 'Profile updated successfully',
+      user: updatedUser
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error updating profile' });
   }
 };

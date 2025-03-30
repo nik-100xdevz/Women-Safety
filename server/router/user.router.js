@@ -18,7 +18,8 @@ import {
   startEmergencyAlert,
   stopEmergencyAlert,
   acknowledgeAlert,
-  savePushSubscription
+  savePushSubscription,
+  updateProfile
 } from '../controller/user.controller.js'
 
 const userRouter = Router()
@@ -29,6 +30,7 @@ userRouter.route('/reports').get(jwtVerify,reportInfo)
 userRouter.route('/comments').get(jwtVerify,commentInfo)
 userRouter.route('/register').post(userRegister)
 userRouter.route('/login').post(userLogin)
+userRouter.route('/profile').put(jwtVerify, updateProfile) 
 
 // Friend request routes
 userRouter.route('/users').get(jwtVerify, getAllUsers)
@@ -43,10 +45,7 @@ userRouter.route('/friends/:friendId').delete(jwtVerify, removeFriend)
 // Emergency alert routes
 userRouter.route('/emergency-alerts/start').post(jwtVerify,startEmergencyAlert)
 userRouter.route('/emergency-alerts/stop').post(jwtVerify,stopEmergencyAlert)
-userRouter.route('/emergency-alerts/acknowledge').post(jwtVerify,(req,res,next)=>{
-  console.log("stop the shit")
-  next()
-} , acknowledgeAlert)
+userRouter.route('/emergency-alerts/acknowledge').post( acknowledgeAlert)
 
 // Push notification subscription route
 userRouter.route('/push-subscription').post(jwtVerify, savePushSubscription)

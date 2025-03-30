@@ -2,6 +2,8 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import { BrowserRouter } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
+import { ToastProvider } from './context/ToastContext'
 
 // Register service worker
 if ('serviceWorker' in navigator) {
@@ -17,7 +19,11 @@ if ('serviceWorker' in navigator) {
 }
 
 createRoot(document.getElementById('root')).render(
-    <BrowserRouter>
-    <App />
-    </BrowserRouter>
+  <BrowserRouter>
+    <AuthProvider>
+      <ToastProvider>
+        <App />
+      </ToastProvider>
+    </AuthProvider>
+  </BrowserRouter>
 )

@@ -7,7 +7,7 @@ const Footer = () => {
     <footer className="bg-white border-t border-gray-200">
       <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          {/* Brand Section */}
+      
           <div className="col-span-1">
             <Link to="/" className="flex items-center">
               <img className="h-12 w-auto" src={LogoWithout} alt="We Safe" />
@@ -18,7 +18,6 @@ const Footer = () => {
             </p>
           </div>
 
-          {/* Quick Links */}
           <div>
             <h3 className="text-sm font-semibold text-gray-900 tracking-wider uppercase">Quick Links</h3>
             <ul className="mt-4 space-y-4">
@@ -45,7 +44,6 @@ const Footer = () => {
             </ul>
           </div>
 
-          {/* Emergency Resources */}
           <div>
             <h3 className="text-sm font-semibold text-gray-900 tracking-wider uppercase">Emergency Resources</h3>
             <ul className="mt-4 space-y-4">
@@ -76,7 +74,6 @@ const Footer = () => {
             </ul>
           </div>
 
-          {/* Support Organizations */}
           <div>
             <h3 className="text-sm font-semibold text-gray-900 tracking-wider uppercase">Support Organizations</h3>
             <ul className="mt-4 space-y-4">
@@ -108,7 +105,6 @@ const Footer = () => {
           </div>
         </div>
 
-        {/* Bottom Section */}
         <div className="mt-8 border-t border-gray-200 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <p className="text-base text-gray-400">

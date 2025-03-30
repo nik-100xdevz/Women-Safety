@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { authService } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const Signin = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
+  
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -24,10 +26,20 @@ const Signin = () => {
     setLoading(true);
 
     try {
-      await authService.login(formData);
+
+       await login(formData);
+      
+      
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        throw new Error('Authentication failed: No token received');
+      }
+      
       navigate('/emergency'); 
     } catch (err) {
-      setError(err.response?.data?.msg || 'An error occurred during sign in');
+      console.error('Sign in error:', err);
+      setError(err.response?.data?.msg || err.message || 'An error occurred during sign in');
     } finally {
       setLoading(false);
     }

@@ -20,6 +20,7 @@ import MyProfile from './pages/MyProfile';
 import MyReports from './pages/MyReports';
 import MyComments from './pages/MyComments';
 import ChatWithFriends from './pages/ChatWithFriends';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   return (
@@ -33,17 +34,21 @@ function App() {
           <Route path="/signup" element={<Signup/>} />
           <Route path="/resources" element={<Resources />} />
           <Route path="/community" element={<Community />} />
-          <Route path="/emergency" element={<Emergency />} />
-          <Route path="/emergency/alert" element={<EmergencyAlert />} />
-          <Route path="/emergency/live-location" element={<LiveLocation />} />
-          <Route path="/emergency/share-location" element={<ShareLiveLocation />} />
-          <Route path="/emergency/shared-location/:roomId" element={<SharedLocationView />} />
-          <Route path="/emergency/report-incident" element={<ReportIncident/>} />
-          <Route path="/emergency/report-incident/:id" element={<IncidentDetail/>} />
-          <Route path="/emergency/chat" element={<ChatWithFriends/>} />
-          <Route path="/profile" element={<MyProfile />} />
-          <Route path="/profile/reports" element={<MyReports />} />
-          <Route path="/profile/comments" element={<MyComments />} />
+          
+          
+          <Route element={<ProtectedRoute />}>
+            <Route path="/emergency" element={<Emergency />} />
+            <Route path="/emergency/alert" element={<EmergencyAlert />} />
+            <Route path="/emergency/live-location" element={<LiveLocation />} />
+            <Route path="/emergency/share-location" element={<ShareLiveLocation />} />
+            <Route path="/emergency/shared-location/:roomId" element={<SharedLocationView />} />
+            <Route path="/emergency/report-incident" element={<ReportIncident/>} />
+            <Route path="/emergency/report-incident/:id" element={<IncidentDetail/>} />
+            <Route path="/emergency/chat" element={<ChatWithFriends/>} />
+            <Route path="/profile" element={<MyProfile />} />
+            <Route path="/profile/reports" element={<MyReports />} />
+            <Route path="/profile/comments" element={<MyComments />} />
+          </Route>
         </Route>
       </Routes>
     </>

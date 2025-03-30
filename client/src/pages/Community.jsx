@@ -286,13 +286,7 @@ const Community = () => {
           >
             Connect with others, share experiences, and make a difference
           </motion.p>
-          {/* <motion.button 
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="bg-pink-600 text-white px-8 py-3 rounded-md text-lg font-medium hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
-          >
-            Sign Up Now
-          </motion.button> */}
+        
         </motion.section>
       </div>
     </div>

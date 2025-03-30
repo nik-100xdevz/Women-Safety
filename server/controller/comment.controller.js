@@ -32,25 +32,7 @@ try{
 
 }
 
-// export async function updateComment(req,res) {
-//     const {title, location, incident} = req.body;
-//     const CommentId = req.params.CommentId;
-//     const userId = req.userId;
-// try{    
-//     const findComment = await Comment.findById(CommentId)
-//     if(!findComment){
-//         return res.status(404).json({msg:"Comment does not found"})
-//     }
-//     if(!(findComment.user == req.userId)){
-//         return res.status(404).json({msg:"Please update your own Comment"})
-//     }
-//     const Comment = await Comment.findByIdAndUpdate(CommentId,{title,location,incident,user:userId})
-//     res.status(201).json({msg:"Comment has been updated",Comment})
-// }catch(e){
-//     return res.status(400).json({msg:"Error",e})
-// }
 
-// }
 
 export async function deleteComment(req,res) {
     const CommentId = req.params.commentId;

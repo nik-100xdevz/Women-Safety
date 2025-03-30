@@ -181,31 +181,27 @@ self.addEventListener('notificationclick', (event) => {
     const apiUrl = self.location.origin + '/api/v1';
     
     // Retrieve the token from IndexedDB
-    getAuthToken().then(token => {
-      if (!token) {
-        console.error('No authentication token found');
-        self.registration.showNotification('Error', {
-          body: 'Authentication required. Please open the app to acknowledge.',
-          icon: '/logo192.png'
+    getAuthToken()
+      .then(token => {
+        if (!token) {
+          throw new Error('No authentication token found');
+        }
+        
+        console.log('Acknowledging alert with ID:', alertId);
+        
+        // Send acknowledgment to server
+        return fetch(`${apiUrl}/user/emergency-alerts/acknowledge`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ alertId })
         });
-        return;
-      }
-      
-      console.log('Acknowledging alert with ID:', alertId);
-      
-      // Send acknowledgment to server
-      fetch(`${apiUrl}/user/emergency-alerts/acknowledge`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token
-        },
-        body: JSON.stringify({ alertId })
       })
       .then(response => {
         if (!response.ok) {
-          console.error('Server responded with status:', response.status);
-          throw new Error('Server responded with status: ' + response.status);
+          throw new Error(`Server responded with status: ${response.status}`);
         }
         return response.json();
       })
@@ -218,27 +214,36 @@ self.addEventListener('notificationclick', (event) => {
           icon: '/logo192.png'
         });
         
+        // Send message to all clients about the acknowledgment
+        self.clients.matchAll().then(clients => {
+          clients.forEach(client => {
+            client.postMessage({
+              type: 'alert_acknowledged',
+              alertId: alertId,
+              acknowledgedAt: new Date().toISOString()
+            });
+          });
+        });
+        
         // Open the app if the user clicked the notification directly
         if (!event.action) {
           clients.openWindow('/emergency/alert');
         }
       })
       .catch(error => {
-        console.error('Error acknowledging alert:', error);
+        console.error('Error in notification click handler:', error);
         
-        // Show notification of failed acknowledgment
+        // Show appropriate error notification
+        let errorMessage = 'Failed to acknowledge alert. Please try again or open the app.';
+        if (error.message.includes('No authentication token found')) {
+          errorMessage = 'Please open the app to authenticate and acknowledge the alert.';
+        }
+        
         self.registration.showNotification('Error', {
-          body: 'Failed to acknowledge alert. Please try again or open the app.',
+          body: errorMessage,
           icon: '/logo192.png'
         });
       });
-    }).catch(error => {
-      console.error('Error getting auth token:', error);
-      self.registration.showNotification('Authentication Error', {
-        body: 'Please open the app to authenticate and acknowledge the alert.',
-        icon: '/logo192.png'
-      });
-    });
   } else if (event.action === 'close') {
     // Just close the notification, no action needed
     return;
@@ -266,13 +271,13 @@ self.addEventListener('notificationclick', (event) => {
 
 // Helper function to get auth token from IndexedDB
 const getAuthToken = () => {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     // Open 'auth' database to retrieve token
     const request = indexedDB.open('auth', 1);
     
-    request.onerror = () => {
-      console.error('Failed to open IndexedDB');
-      resolve(null);
+    request.onerror = (event) => {
+      console.error('Failed to open IndexedDB:', event.target.error);
+      reject(event.target.error);
     };
     
     request.onsuccess = (event) => {
@@ -280,7 +285,7 @@ const getAuthToken = () => {
       
       if (!db.objectStoreNames.contains('token')) {
         console.error('No token store found');
-        resolve(null);
+        reject(new Error('No token store found'));
         return;
       }
       
@@ -289,12 +294,19 @@ const getAuthToken = () => {
       const tokenRequest = store.get('token');
       
       tokenRequest.onsuccess = () => {
-        resolve(tokenRequest.result);
+        const token = tokenRequest.result;
+        if (!token) {
+          console.error('No token found in IndexedDB');
+          reject(new Error('No token found'));
+        } else {
+          console.log('Token retrieved successfully from IndexedDB');
+          resolve(token);
+        }
       };
       
-      tokenRequest.onerror = () => {
-        console.error('Error retrieving token');
-        resolve(null);
+      tokenRequest.onerror = (event) => {
+        console.error('Error retrieving token:', event.target.error);
+        reject(event.target.error);
       };
     };
     

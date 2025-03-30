@@ -60,6 +60,27 @@ const SharedLocationView = () => {
                 ...prev,
                 [userId]: { latitude, longitude }
               }));
+            } else if (data.message?.type === 'location_sharing_stopped') {
+              const { userId } = data.message;
+              // Remove the user from participant locations
+              setParticipantLocations(prev => {
+                const newLocations = { ...prev };
+                delete newLocations[userId];
+                return newLocations;
+              });
+              
+              // Show notification
+              if (Notification.permission === 'granted') {
+                new Notification('Location Sharing Stopped', {
+                  body: 'The host has stopped sharing their location',
+                  icon: '/logo192.png'
+                });
+              }
+              
+              // Redirect to main page after a short delay
+              setTimeout(() => {
+                navigate('/emergency');
+              }, 3000);
             }
             break;
             
@@ -80,7 +101,7 @@ const SharedLocationView = () => {
     return () => {
       socket.removeEventListener('message', handleMessage);
     };
-  }, [socket]);
+  }, [socket, navigate]);
   
   // Get user's location
   useEffect(() => {

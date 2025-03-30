@@ -71,6 +71,17 @@ class SocketService {
       return;
     }
     
+    // Send notification that user is leaving
+    this.socket.send(JSON.stringify({
+      type: 'message',
+      message: {
+        type: 'location_sharing_stopped',
+        userId: this.userId,
+        roomId: this.roomId
+      }
+    }));
+    
+    // Send leave room message
     this.socket.send(JSON.stringify({
       type: 'leave_room',
       roomId: this.roomId

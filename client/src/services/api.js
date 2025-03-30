@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api/v1';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -12,11 +12,36 @@ const api = axios.create({
 // Add token to requests if it exists
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
+  console.log('Token in API service interceptor:', token);
   if (token) {
-    config.headers.Authorization = token;
+    config.headers.Authorization = `Bearer ${token}`;
+    console.log('Setting Authorization header:', config.headers.Authorization);
   }
   return config;
 });
+
+// Response interceptor to handle errors
+api.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    console.error('API Error Response:', error);
+    
+    // Handle unauthorized errors
+    if (error.response && error.response.status === 401) {
+      console.log('Unauthorized request detected, clearing auth data');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      // Redirect to sign in page if not already there
+      if (!window.location.pathname.includes('/signin')) {
+        window.location.href = '/signin';
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 // Auth services
 export const authService = {
@@ -26,14 +51,52 @@ export const authService = {
   },
   
   login: async (credentials) => {
-    const response = await api.post('/user/login', credentials);
-    if (response.data.token) {
-      localStorage.setItem('token', response.data.token);
-      if (response.data.user) {
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+    try {
+      console.log('Calling login API with:', credentials);
+      const response = await api.post('/user/login', credentials);
+      console.log('Login API response:', response);
+      
+      if (response.data && response.data.token) {
+        console.log('Saving token to localStorage:', response.data.token);
+        localStorage.setItem('token', response.data.token);
+        
+        if (response.data.user) {
+          console.log('Saving user to localStorage:', response.data.user);
+          localStorage.setItem('user', JSON.stringify(response.data.user));
+          
+          // Store token in IndexedDB for service worker
+          try {
+            const request = indexedDB.open('auth', 1);
+            request.onerror = (event) => {
+              console.error('Error opening IndexedDB:', event.target.error);
+            };
+            request.onsuccess = (event) => {
+              const db = event.target.result;
+              const transaction = db.transaction(['token'], 'readwrite');
+              const store = transaction.objectStore('token');
+              store.put(response.data.token, 'token');
+            };
+            request.onupgradeneeded = (event) => {
+              const db = event.target.result;
+              if (!db.objectStoreNames.contains('token')) {
+                db.createObjectStore('token');
+              }
+            };
+          } catch (error) {
+            console.error('Error storing token in IndexedDB:', error);
+          }
+        } else {
+          console.error('No user data in response');
+        }
+      } else {
+        console.error('No token in response:', response.data);
       }
+      
+      return response.data;
+    } catch (error) {
+      console.error('API login error:', error);
+      throw error;
     }
-    return response.data;
   },
   
   logout: () => {
@@ -43,8 +106,15 @@ export const authService = {
   
   getCurrentUser: async () => {
     const response = await api.get('/user/me');
+    console.log("This is the current user response",response.data)
     return response.data;
   },
+
+  updateProfile: async (userData) => {
+    const response = await api.put('/user/profile', userData);
+    return response.data;
+  },
+
   getPublictUserInfo: async (userId) => {
     const response = await api.get(`user/public/${userId}`);
     return response.data;

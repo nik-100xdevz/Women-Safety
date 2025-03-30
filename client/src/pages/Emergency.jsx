@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Button, Typography, List, ListItem, ListItemText, ListItemSecondaryAction, Alert, CircularProgress } from '@mui/material';
-import { getFriends, sendEmergencyAlert, stopEmergencyAlert, acknowledgeAlert } from '../services/api';
-import { registerServiceWorker, requestNotificationPermission, subscribeToPushNotifications, startEmergencyAlert, stopEmergencyAlert as stopServiceWorkerAlert, storeAuthToken } from '../services/serviceWorkerUtils';
+import { getFriends, sendEmergencyAlert } from '../services/api';
+import { registerServiceWorker, requestNotificationPermission, subscribeToPushNotifications, storeAuthToken } from '../services/serviceWorkerUtils';
 
 const Emergency = () => {
   const [isAlertActive, setIsAlertActive] = useState(false);
@@ -341,13 +341,13 @@ const Emergency = () => {
                   <path fillRule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.157 2 5.34 2 5.528v8.944c0 .188.056.37.166.528C3.937 16.735 6.817 18 10 18s6.063-1.265 7.834-3.028c.11-.158.166-.34.166-.528V5.528c0-.188-.056-.37-.166-.528A11.954 11.954 0 0110 1.944zM11 14a1 1 0 11-2 0 1 1 0 012 0zm0-7a1 1 0 10-2 0v3a1 1 0 102 0V7z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Emergency Alert</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Emergency Support</h3>
               <p className="text-gray-600 mb-4">Send an immediate emergency alert to your trusted contacts with your location.</p>
               <Link
                 to="/emergency/alert"
                 className="inline-block bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700 transition-colors duration-200"
               >
-                Send Alert
+                Send Support
               </Link>
             </div>
           </motion.div>

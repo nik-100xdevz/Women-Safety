@@ -1,37 +1,44 @@
 import React, { useState, useEffect } from 'react'
 import Logo from '../assets/logo.png'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { authService } from '../services/api'
+import { useAuth } from '../context/AuthContext'
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const [user, setUser] = useState(null);
+  const { currentUser, logout, isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
-
+  
+  // Check auth status on component mount and when token changes
   useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        const response = await authService.getCurrentUser();
-        setUser(response.user);
-      }
-    } catch (err) {
-      console.error('Error checking auth:', err);
-      localStorage.removeItem('token');
-      setUser(null);
-    }
-  };
+    const token = localStorage.getItem('token');
+    console.log('Token in Navbar:', token);
+    console.log('Current user in Navbar:', currentUser);
+  }, [currentUser]);
 
   const handleSignOut = () => {
-    authService.logout();
-    setUser(null);
+    console.log('Sign out clicked');
+    logout();
     navigate('/signin');
   };
+
+  // If still loading, show a simplified navbar
+  if (loading) {
+    return (
+      <nav className='w-full bg-white shadow-md fixed top-0 z-50'>
+        <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
+          <div className='flex justify-between items-center h-16'>
+            <div className='flex-shrink-0'>
+              <Link to='/' className='flex items-center'>
+                <img className='h-12 w-auto' src={Logo} alt="We Safe" />
+                <span className='ml-2 text-xl font-semibold text-pink-600'>We Safe</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </nav>
+    );
+  }
 
   return (
     <nav className='w-full bg-white shadow-md fixed top-0 z-50'>
@@ -44,7 +51,6 @@ const Navbar = () => {
             </Link>
           </div>
 
-          {/* Desktop Navigation */}
           <div className='hidden md:block'>
             <div className='ml-10 flex items-center space-x-4'>
               <NavLink to="/" className={({ isActive }) => 
@@ -77,7 +83,7 @@ const Navbar = () => {
               }>
                 Contact
               </NavLink>
-              {user ? (
+              {isAuthenticated() && currentUser ? (
                 <div className="relative">
                   <button
                     onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
@@ -85,13 +91,13 @@ const Navbar = () => {
                   >
                     <div className="w-8 h-8 rounded-full bg-pink-100 flex items-center justify-center">
                       <span className="text-pink-600 font-medium">
-                        {user.username.charAt(0).toUpperCase()}
+                        {currentUser?.charAt(0).toUpperCase() || '?'}
                       </span>
                     </div>
                   </button>
                   {isProfileMenuOpen && (
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1">
-                      <span className="text-sm px-4 py-2 font-medium text-gray-700 text-center">{user.username}</span>
+                      <span className="text-sm px-4 py-2 font-medium text-gray-700 text-center">{currentUser.username}</span>
                       <Link
                         to="/profile"
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-pink-50"
@@ -114,11 +120,11 @@ const Navbar = () => {
                         My Comments
                       </Link>
                       <button
-                        onClick={()=>{
+                        onClick={() => {
                           handleSignOut();
-                          setIsProfileMenuOpen(false)
+                          setIsProfileMenuOpen(false);
                         }}
-                        className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"                      >
+                        className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">
                         Sign Out
                       </button>
                     </div>
@@ -132,7 +138,6 @@ const Navbar = () => {
             </div>
           </div>
 
-          {/* Mobile menu button */}
           <div className='md:hidden'>
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -150,7 +155,6 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Mobile Navigation */}
       {isMenuOpen && (
         <div className='md:hidden'>
           <div className='px-2 pt-2 pb-3 space-y-1 sm:px-3'>
@@ -172,7 +176,7 @@ const Navbar = () => {
             <NavLink to="/contact" className='block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-pink-600 hover:bg-pink-50'>
               Contact
             </NavLink>
-            {user ? (
+            {isAuthenticated() && currentUser ? (
               <>
                 <Link to="/profile" className='block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-pink-600 hover:bg-pink-50'>
                   My Profile
@@ -184,7 +188,10 @@ const Navbar = () => {
                   My Comments
                 </Link>
                 <button
-                  onClick={handleSignOut}
+                  onClick={() => {
+                    handleSignOut();
+                    setIsProfileMenuOpen(false);
+                  }}
                   className='block w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-600 hover:text-red-700 hover:bg-red-50'
                 >
                   Sign Out

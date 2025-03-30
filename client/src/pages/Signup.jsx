@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { authService } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const Signup = () => {
   const navigate = useNavigate();
+  const { register } = useAuth();
+  
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -33,7 +35,7 @@ const Signup = () => {
 
     try {
       const { confirmPassword, ...registerData } = formData;
-      await authService.register(registerData);
+      await register(registerData);
       navigate('/signin'); // Redirect to sign in page after successful registration
     } catch (err) {
       setError(err.response?.data?.msg || 'An error occurred during sign up');

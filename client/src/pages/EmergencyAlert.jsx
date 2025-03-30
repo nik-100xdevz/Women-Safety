@@ -20,6 +20,26 @@ const EmergencyAlert = () => {
     
     // Check if there's an active alert when the component mounts
     checkActiveAlert();
+    
+    // Add event listener for messages from service worker
+    const handleMessage = (event) => {
+      if (event.data && event.data.type === 'alert_acknowledged') {
+        console.log('Received acknowledgment from service worker:', event.data);
+        // Add the acknowledged alert to our state
+        setAcknowledgments(prev => [...prev, event.data.alertId]);
+        // Refresh friends list to get updated acknowledgment status
+        fetchFriends();
+      }
+    };
+    
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleMessage);
+      if (window.emergencyRefreshInterval) {
+        clearInterval(window.emergencyRefreshInterval);
+      }
+    };
   }, []);
   
   // Function to check for active emergency alert
@@ -431,7 +451,10 @@ const EmergencyAlert = () => {
                           </ListItemSecondaryAction>
                         ) : acknowledgments.includes(friend._id) && (
                           <ListItemSecondaryAction>
-                            <Typography color="success.main">
+                            <Typography color="success.main" sx={{ display: 'flex', alignItems: 'center' }}>
+                              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
                               Alert Acknowledged
                             </Typography>
                           </ListItemSecondaryAction>
