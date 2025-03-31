@@ -6,6 +6,7 @@ import cors from 'cors'
 import userRouter from './router/user.router.js';
 import reportRouter from './router/report.router.js';
 import commentRouter from './router/comment.router.js';
+import emergencyRouter from './router/emergency.router.js';
 
 app.use(cors());
 app.use(express.json());
@@ -17,5 +18,6 @@ app.get('/', (req, res) => {
 app.use('/api/v1/user', userRouter);
 app.use('/api/v1/report', reportRouter);
 app.use('/api/v1/comment', commentRouter);
+app.use('/api/v1/emergency', emergencyRouter);
 
 export default app;

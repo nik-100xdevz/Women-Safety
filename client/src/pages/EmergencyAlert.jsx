@@ -1,159 +1,142 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Box, Button, Typography, Paper, List, ListItem, ListItemText, ListItemSecondaryAction, Alert, CircularProgress } from '@mui/material';
-import { getFriends, sendEmergencyAlert, stopEmergencyAlert, acknowledgeAlert } from '../services/api';
+import { 
+  Box, Button, Typography, Paper, CircularProgress, TextField, Dialog, 
+  DialogTitle, DialogContent, DialogActions, List, ListItem, ListItemText,
+  ListItemSecondaryAction, IconButton, Switch, Tooltip
+} from '@mui/material';
+import { Edit as EditIcon, Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { useWebSocket } from '../components/WebSocketProvider';
+import { emergencyService } from '../services/api';
+
+// Phone number validation regex for Indian numbers
+const PHONE_REGEX = /^\+91[1-9]\d{9}$/;
 
 const EmergencyAlert = () => {
   const [isAlertActive, setIsAlertActive] = useState(false);
-  const [friends, setFriends] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [acknowledgments, setAcknowledgments] = useState([]);
-  const [alertId, setAlertId] = useState(null);
-  
-  // Use global WebSocket connection
-  const { socket, connected, error: socketError } = useWebSocket();
+  const [phoneNumbers, setPhoneNumbers] = useState([]);
+  const [isPhoneDialogOpen, setIsPhoneDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [editingNumber, setEditingNumber] = useState(null);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneLabel, setPhoneLabel] = useState('');
 
-  // Initialize data
   useEffect(() => {
-    const initializeData = async () => {
+    // Fetch saved phone numbers on component mount
+    const fetchPhoneNumbers = async () => {
       try {
-        // Fetch friends and check active alert
-        const response = await getFriends();
-        setFriends(response.friends);
-        setAcknowledgments(response.acknowledgments || []);
-        
-        // Check for active alert
-        if (response.activeAlert && response.alertId) {
-          setIsAlertActive(true);
-          setAlertId(response.alertId);
-        }
-      } catch (err) {
-        console.error('Error initializing data:', err);
-        setError('Failed to fetch data');
-      } finally {
-        setLoading(false);
+        const response = await emergencyService.getAllPhoneNumbers();
+        setPhoneNumbers(response.phoneNumbers || []);
+      } catch (error) {
+        console.error('Error fetching phone numbers:', error);
+        toast.error('Failed to fetch emergency contacts');
       }
     };
-
-    initializeData();
+    fetchPhoneNumbers();
   }, []);
 
-  // Set up WebSocket message handler
-  useEffect(() => {
-    if (socket && connected) {
-      const handleMessage = (event) => {
-        const data = JSON.parse(event.data);
-        console.log('Received WebSocket message:', data);
-        
-        switch (data.type) {
-          case 'emergency_alert':
-            // Handle incoming emergency alert
-            setIsAlertActive(true);
-            setAlertId(data.alertId);
-            toast.error(data.notification.message, {
-              position: "top-right",
-              autoClose: false,
-              hideProgressBar: false,
-              closeOnClick: true,
-              pauseOnHover: true,
-              draggable: true,
-            });
-            break;
-            
-          case 'emergency_alert_stopped':
-            // Handle alert stopped notification
-            setIsAlertActive(false);
-            setAlertId(null);
-            toast.info('Emergency alert has been stopped', {
-              position: "top-right",
-              autoClose: 5000,
-              hideProgressBar: false,
-              closeOnClick: true,
-              pauseOnHover: true,
-              draggable: true,
-            });
-            break;
-            
-          case 'alert_acknowledged':
-            // Handle acknowledgment notification
-            setAcknowledgments(prev => [...prev, data.notification.userId]);
-            toast.success(data.notification.message, {
-              position: "top-right",
-              autoClose: 5000,
-              hideProgressBar: false,
-              closeOnClick: true,
-              pauseOnHover: true,
-              draggable: true,
-            });
-            break;
-            
-          default:
-            break;
-        }
-      };
-      
-      socket.addEventListener('message', handleMessage);
-      return () => {
-        socket.removeEventListener('message', handleMessage);
-      };
-    } else if (socketError) {
-      console.error('WebSocket connection error:', socketError);
-      setError('Failed to connect to WebSocket server');
+  const validatePhoneNumber = (number) => {
+    if (!number) {
+      toast.error('Please enter a phone number');
+      return false;
     }
-  }, [socket, connected, socketError]);
+    if (!PHONE_REGEX.test(number)) {
+      toast.error('Please enter a valid Indian phone number in format: +91XXXXXXXXXX');
+      return false;
+    }
+    return true;
+  };
+
+  const handlePhoneSubmit = async () => {
+    if (!validatePhoneNumber(phoneNumber)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (editingNumber) {
+        const response = await emergencyService.updatePhoneNumber(editingNumber._id, {
+          numberId: editingNumber._id,
+          number: phoneNumber,
+          label: phoneLabel || editingNumber.label
+        });
+        setPhoneNumbers(response.phoneNumbers);
+        toast.success('Phone number updated successfully!');
+      } else {
+        const response = await emergencyService.addPhoneNumber({
+          number: phoneNumber,
+          label: phoneLabel || 'Emergency Contact'
+        });
+        setPhoneNumbers(response.phoneNumbers);
+        toast.success('Phone number added successfully!');
+      }
+      handleCloseDialog();
+    } catch (error) {
+      if (error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error(editingNumber ? 'Failed to update phone number' : 'Failed to add phone number');
+      }
+      console.error('Error saving phone number:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteNumber = async (numberId) => {
+    try {
+      const response = await emergencyService.deletePhoneNumber(numberId);
+      setPhoneNumbers(response.phoneNumbers);
+      toast.success('Phone number deleted successfully!');
+    } catch (error) {
+      toast.error('Failed to delete phone number');
+      console.error('Error deleting phone number:', error);
+    }
+  };
+
+  const handleToggleActive = async (number) => {
+    try {
+      const response = await emergencyService.updatePhoneNumber(number._id, {
+        numberId: number._id,
+        number: number.number,
+        label: number.label,
+        isActive: !number.isActive
+      });
+      setPhoneNumbers(response.phoneNumbers);
+      toast.success(`Contact ${number.isActive ? 'deactivated' : 'activated'} successfully!`);
+    } catch (error) {
+      toast.error('Failed to update contact status');
+      console.error('Error updating phone number:', error);
+    }
+  };
+
+  const handleEditNumber = (number) => {
+    setEditingNumber(number);
+    setPhoneNumber(number.number);
+    setPhoneLabel(number.label);
+    setIsPhoneDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    setIsPhoneDialogOpen(false);
+    setEditingNumber(null);
+    setPhoneNumber('');
+    setPhoneLabel('');
+  };
 
   const handleStartAlert = async () => {
-    try {
-      const response = await sendEmergencyAlert();
-      setIsAlertActive(true);
-      setAlertId(response.alertId);
-      
-      // Send WebSocket message to notify friends
-      if (socket && connected) {
-        console.log('Sending emergency alert via WebSocket');
-        socket.send(JSON.stringify({
-          type: 'message',
-          message: {
-            type: 'emergency_alert',
-            alertId: response.alertId,
-            notification: response.notification,
-            recipients: friends.map(friend => friend._id)
-          }
-        }));
-      } else {
-        console.error('WebSocket not connected');
-        setError('Failed to send emergency alert: WebSocket not connected');
-      }
-      
-      // Show notification for the sender
-      toast.success('Emergency alert sent to all friends!', {
-        position: "top-right",
-        autoClose: 5000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-      });
+    if (!phoneNumbers.length) {
+      setIsPhoneDialogOpen(true);
+      return;
+    }
 
-      // If there's notification data in the response, show it
-      if (response.notification) {
-        toast.info(response.notification.message, {
-          position: "top-right",
-          autoClose: 5000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-        });
-      }
-    } catch (err) {
-      console.error('Error starting alert:', err);
-      toast.error('Failed to send emergency alert', {
+    setLoading(true);
+    try {
+      await emergencyService.sendEmergencyAlert();
+      setIsAlertActive(true);
+      toast.success('Emergency alert sent successfully!', {
         position: "top-right",
         autoClose: 5000,
         hideProgressBar: false,
@@ -161,14 +144,19 @@ const EmergencyAlert = () => {
         pauseOnHover: true,
         draggable: true,
       });
+    } catch (error) {
+      toast.error('Failed to send emergency alert');
+      console.error('Error sending alert:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleStopAlert = async () => {
+    setLoading(true);
     try {
-      await stopEmergencyAlert();
+      await emergencyService.stopEmergencyAlert();
       setIsAlertActive(false);
-      setAlertId(null);
       toast.info('Emergency alert stopped', {
         position: "top-right",
         autoClose: 3000,
@@ -177,55 +165,11 @@ const EmergencyAlert = () => {
         pauseOnHover: true,
         draggable: true,
       });
-    } catch (err) {
-      console.error('Error stopping alert:', err);
-      toast.error('Failed to stop emergency alert', {
-        position: "top-right",
-        autoClose: 5000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-      });
-    }
-  };
-
-  const handleAcknowledge = async (friendId) => {
-    try {
-      const response = await acknowledgeAlert(friendId);
-      setAcknowledgments(prev => [...prev, friendId]);
-      
-      // Show notification for acknowledgment
-      toast.success('Alert acknowledged', {
-        position: "top-right",
-        autoClose: 3000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-      });
-
-      // If there's notification data in the response, show it
-      if (response.notification) {
-        toast.info(response.notification.message, {
-          position: "top-right",
-          autoClose: 3000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-        });
-      }
-    } catch (err) {
-      console.error('Error acknowledging alert:', err);
-      toast.error('Failed to acknowledge alert', {
-        position: "top-right",
-        autoClose: 5000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-      });
+    } catch (error) {
+      toast.error('Failed to stop emergency alert');
+      console.error('Error stopping alert:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -288,7 +232,7 @@ const EmergencyAlert = () => {
             </motion.div>
           </Link>
 
-          {/* Alert Your Friends Card - Replacing Live Location */}
+          {/* Alert Your Friends Card */}
           <motion.div
             whileHover={{ scale: 1.02 }}
             className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow duration-200"
@@ -300,8 +244,49 @@ const EmergencyAlert = () => {
                 </svg>
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Emergency Alert</h3>
-              <p className="text-gray-600 mb-4">Send alerts to your friends in case of emergency</p>
-              
+              <p className="text-gray-600 mb-4">Send emergency SMS alerts in case of danger</p>
+
+              {/* Phone Numbers List */}
+              {phoneNumbers.length > 0 && (
+                <List className="mb-4 bg-gray-50 rounded-lg">
+                  {phoneNumbers.map((number) => (
+                    <ListItem key={number._id} className="border-b last:border-b-0">
+                      <ListItemText
+                        primary={number.label}
+                        secondary={number.number}
+                        className={!number.isActive ? 'text-gray-400' : ''}
+                      />
+                      <ListItemSecondaryAction>
+                        <Tooltip title={number.isActive ? 'Deactivate' : 'Activate'}>
+                          <Switch
+                            edge="end"
+                            checked={number.isActive}
+                            onChange={() => handleToggleActive(number)}
+                          />
+                        </Tooltip>
+                        <IconButton edge="end" onClick={() => handleEditNumber(number)}>
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton edge="end" onClick={() => handleDeleteNumber(number._id)}>
+                          <DeleteIcon />
+                        </IconButton>
+                      </ListItemSecondaryAction>
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<AddIcon />}
+                onClick={() => setIsPhoneDialogOpen(true)}
+                className="mb-4"
+                fullWidth
+              >
+                Add Emergency Contact
+              </Button>
+
               {!isAlertActive ? (
                 <Button
                   variant="contained"
@@ -309,7 +294,7 @@ const EmergencyAlert = () => {
                   size="large"
                   fullWidth
                   onClick={handleStartAlert}
-                  disabled={loading || friends.length === 0}
+                  disabled={loading || !phoneNumbers.some(n => n.isActive)}
                   sx={{ py: 1.5 }}
                 >
                   {loading ? <CircularProgress size={24} color="inherit" /> : 'Send Emergency Alert'}
@@ -383,65 +368,6 @@ const EmergencyAlert = () => {
           </div>
         </div>
 
-        {/* Friend Alert Status */}
-        {(isAlertActive || acknowledgments.length > 0) && (
-          <div className="mt-12 bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Alert Status</h2>
-            {loading && !friends.length ? (
-              <div className="flex justify-center py-4">
-                <CircularProgress />
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {error && (
-                  <Alert severity="error" sx={{ mb: 2 }}>
-                    {error}
-                  </Alert>
-                )}
-                
-                {isAlertActive && (
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    Emergency alert is active. Your trusted contacts are being notified.
-                  </Alert>
-                )}
-                
-                {friends.length === 0 ? (
-                  <Alert severity="info">
-                    You don't have any friends to alert. Add friends to use this feature.
-                  </Alert>
-                ) : (
-                  <List>
-                    {friends.map((friend) => (
-                      <ListItem key={friend._id} className="mb-2 bg-gray-50 rounded-lg">
-                        <ListItemText
-                          primary={friend.username}
-                          secondary={friend.email}
-                        />
-                        {isAlertActive && !acknowledgments.includes(friend._id) ? (
-                          <ListItemSecondaryAction>
-                            <Typography color="warning.main" sx={{ mr: 2, display: 'inline-block' }}>
-                              Waiting...
-                            </Typography>
-                          </ListItemSecondaryAction>
-                        ) : acknowledgments.includes(friend._id) && (
-                          <ListItemSecondaryAction>
-                            <Typography color="success.main" sx={{ display: 'flex', alignItems: 'center' }}>
-                              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                              Alert Acknowledged
-                            </Typography>
-                          </ListItemSecondaryAction>
-                        )}
-                      </ListItem>
-                    ))}
-                  </List>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Back Button */}
         <div className="mt-8 text-center">
           <Link
@@ -452,6 +378,52 @@ const EmergencyAlert = () => {
           </Link>
         </div>
       </motion.div>
+
+      {/* Phone Number Dialog */}
+      <Dialog open={isPhoneDialogOpen} onClose={handleCloseDialog}>
+        <DialogTitle>{editingNumber ? 'Edit Emergency Contact' : 'Add Emergency Contact'}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+            This phone number will receive emergency SMS alerts when you activate the emergency button.
+          </Typography>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Phone Number"
+            type="tel"
+            fullWidth
+            variant="outlined"
+            value={phoneNumber}
+            onChange={(e) => setPhoneNumber(e.target.value)}
+            placeholder="+91XXXXXXXXXX"
+            helperText="Enter number in format: +91XXXXXXXXXX (Example: +919876543210)"
+            error={phoneNumber && !PHONE_REGEX.test(phoneNumber)}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            margin="dense"
+            label="Label"
+            type="text"
+            fullWidth
+            variant="outlined"
+            value={phoneLabel}
+            onChange={(e) => setPhoneLabel(e.target.value)}
+            placeholder="E.g., Mom, Dad, Sister"
+            helperText="Give this contact a memorable name"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDialog}>Cancel</Button>
+          <Button 
+            onClick={handlePhoneSubmit} 
+            variant="contained" 
+            color="primary" 
+            disabled={loading || (phoneNumber && !PHONE_REGEX.test(phoneNumber))}
+          >
+            {loading ? <CircularProgress size={24} /> : (editingNumber ? 'Update' : 'Save')}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 };

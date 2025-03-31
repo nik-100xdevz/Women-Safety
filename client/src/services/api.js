@@ -254,4 +254,37 @@ export const savePushSubscription = async (subscription) => {
   return response.data;
 };
 
+// Emergency services
+export const emergencyService = {
+  getAllPhoneNumbers: async () => {
+    const response = await api.get('/emergency/phone-numbers');
+    return response.data;
+  },
+
+  addPhoneNumber: async (phoneData) => {
+    const response = await api.post('/emergency/phone-numbers', phoneData);
+    return response.data;
+  },
+
+  updatePhoneNumber: async (numberId, phoneData) => {
+    const response = await api.put(`/emergency/phone-numbers/${numberId}`, phoneData);
+    return response.data;
+  },
+
+  deletePhoneNumber: async (numberId) => {
+    const response = await api.delete(`/emergency/phone-numbers/${numberId}`);
+    return response.data;
+  },
+
+  sendEmergencyAlert: async () => {
+    const response = await api.post('/emergency/alert');
+    return response.data;
+  },
+
+  stopEmergencyAlert: async () => {
+    const response = await api.post('/emergency/stop-alert');
+    return response.data;
+  }
+};
+
 export default api; 
