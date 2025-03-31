@@ -6,10 +6,20 @@ class SocketService {
     this.userId = null;
     this.roomId = null;
     this.locationUpdateInterval = null;
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 5;
+    this.pingInterval = null;
   }
 
   connect(userId) {
+    if (!userId) {
+      return null;
+    }
+
     if (this.socket) {
+      if (this.socket.readyState === WebSocket.OPEN && this.userId === userId) {
+        return this.socket;
+      }
       this.disconnect();
     }
 
@@ -18,11 +28,29 @@ class SocketService {
     const host = process.env.NODE_ENV === 'production' 
       ? window.location.host
       : 'localhost:5000';
-      
-    this.userId = userId;
-    this.socket = new WebSocket(`${protocol}//${host}/ws?userId=${userId}`);
     
-    return this.socket;
+    try {
+      this.userId = userId;
+      this.socket = new WebSocket(`${protocol}//${host}/ws?userId=${userId}`);
+      
+      this.socket.onopen = () => {
+        this.reconnectAttempts = 0;
+      };
+
+      this.socket.onclose = () => {
+        if (this.reconnectAttempts < 5) {
+          setTimeout(() => {
+            this.reconnectAttempts++;
+            this.connect(this.userId);
+          }, 1000 * Math.min(this.reconnectAttempts + 1, 5));
+        }
+      };
+      
+      return this.socket;
+    } catch (error) {
+      console.error('Error creating WebSocket connection:', error);
+      return null;
+    }
   }
 
   disconnect() {
@@ -35,6 +63,10 @@ class SocketService {
       clearInterval(this.locationUpdateInterval);
       this.locationUpdateInterval = null;
     }
+    
+    this.userId = null;
+    this.roomId = null;
+    this.reconnectAttempts = 0;
   }
 
   createLocationShareRoom() {

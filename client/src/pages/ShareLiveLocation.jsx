@@ -5,6 +5,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { authService } from '../services/api';
 import socketService, { useSocket } from '../services/socket';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const ShareLiveLocation = () => {
   const { roomId } = useParams();
@@ -74,13 +76,15 @@ const ShareLiveLocation = () => {
                 return newLocations;
               });
               
-              // Show notification
-              if (Notification.permission === 'granted') {
-                new Notification('Location Sharing Stopped', {
-                  body: 'A user has stopped sharing their location',
-                  icon: '/logo192.png'
-                });
-              }
+              // Show toast notification
+              toast.info('A user has stopped sharing their location', {
+                position: "top-right",
+                autoClose: 3000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+              });
               
               // If this is the host who stopped sharing, redirect to main page
               if (userId === user?._id) {

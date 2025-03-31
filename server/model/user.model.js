@@ -18,11 +18,7 @@ const userSchema = new Schema({
     friends: [{
         type: Schema.Types.ObjectId,
         ref: 'User'
-    }],
-    pushSubscription: {
-        type: Object,
-        default: null
-    }
+    }]
 },{timestams:true})
 
 const User = mongoose.model('User',userSchema)

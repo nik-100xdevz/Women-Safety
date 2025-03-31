@@ -18,11 +18,10 @@ import {
   startEmergencyAlert,
   stopEmergencyAlert,
   acknowledgeAlert,
-  savePushSubscription,
   updateProfile
 } from '../controller/user.controller.js'
 
-const userRouter = Router()
+const userRouter = Router() 
 
 userRouter.route('/me').get(jwtVerify,userInfo)
 userRouter.route('/public/:userId').get(userPublicInfo)
@@ -46,8 +45,5 @@ userRouter.route('/friends/:friendId').delete(jwtVerify, removeFriend)
 userRouter.route('/emergency-alerts/start').post(jwtVerify,startEmergencyAlert)
 userRouter.route('/emergency-alerts/stop').post(jwtVerify,stopEmergencyAlert)
 userRouter.route('/emergency-alerts/acknowledge').post( acknowledgeAlert)
-
-// Push notification subscription route
-userRouter.route('/push-subscription').post(jwtVerify, savePushSubscription)
 
 export default userRouter

@@ -68,8 +68,13 @@ try{
     if(!(report.user == req.userId)){
         return res.status(404).json({msg:"Please delete your own report"})
     }
+    
+    // Delete all comments associated with this report
+    await Comment.deleteMany({ reportId });
+    
+    // Delete the report
     await Report.findByIdAndDelete(reportId)
-    return res.status(200).json({msg:"Report has been deleted"})
+    return res.status(200).json({msg:"Report and associated comments have been deleted"})
 }catch(e){
     return res.json({msg:"Error occured while reporting the incident",e})
 }

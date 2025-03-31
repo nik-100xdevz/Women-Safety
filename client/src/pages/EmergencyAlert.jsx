@@ -3,7 +3,9 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Box, Button, Typography, Paper, List, ListItem, ListItemText, ListItemSecondaryAction, Alert, CircularProgress } from '@mui/material';
 import { getFriends, sendEmergencyAlert, stopEmergencyAlert, acknowledgeAlert } from '../services/api';
-import { registerServiceWorker, requestNotificationPermission, subscribeToPushNotifications } from '../services/serviceWorkerUtils';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { useWebSocket } from '../components/WebSocketProvider';
 
 const EmergencyAlert = () => {
   const [isAlertActive, setIsAlertActive] = useState(false);
@@ -11,236 +13,225 @@ const EmergencyAlert = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [acknowledgments, setAcknowledgments] = useState([]);
-  const [notificationPermission, setNotificationPermission] = useState(Notification.permission === 'granted');
   const [alertId, setAlertId] = useState(null);
-
-  useEffect(() => {
-    fetchFriends();
-    setupNotifications();
-    
-    // Check if there's an active alert when the component mounts
-    checkActiveAlert();
-    
-    // Add event listener for messages from service worker
-    const handleMessage = (event) => {
-      if (event.data && event.data.type === 'alert_acknowledged') {
-        console.log('Received acknowledgment from service worker:', event.data);
-        // Add the acknowledged alert to our state
-        setAcknowledgments(prev => [...prev, event.data.alertId]);
-        // Refresh friends list to get updated acknowledgment status
-        fetchFriends();
-      }
-    };
-    
-    navigator.serviceWorker.addEventListener('message', handleMessage);
-    
-    return () => {
-      navigator.serviceWorker.removeEventListener('message', handleMessage);
-      if (window.emergencyRefreshInterval) {
-        clearInterval(window.emergencyRefreshInterval);
-      }
-    };
-  }, []);
   
-  // Function to check for active emergency alert
-  const checkActiveAlert = async () => {
-    try {
-      setLoading(true);
-      const response = await getFriends();
-      
-      console.log('Active alert check response:', response);
-      
-      // If there's an active alert in the response
-      if (response.activeAlert && response.alertId) {
-        setIsAlertActive(true);
-        setAlertId(response.alertId);
+  // Use global WebSocket connection
+  const { socket, connected, error: socketError } = useWebSocket();
+
+  // Initialize data
+  useEffect(() => {
+    const initializeData = async () => {
+      try {
+        // Fetch friends and check active alert
+        const response = await getFriends();
+        setFriends(response.friends);
+        setAcknowledgments(response.acknowledgments || []);
         
-        // Set acknowledgments if any
-        if (response.acknowledgments && response.acknowledgments.length > 0) {
-          setAcknowledgments(response.acknowledgments);
-        }
-        
-        // Start periodic refresh for active alert
-        const refreshInterval = setInterval(fetchFriends, 5000); // Every 5 seconds
-        window.emergencyRefreshInterval = refreshInterval;
-      }
-      setLoading(false);
-    } catch (err) {
-      console.error('Error checking active alert:', err);
-      setLoading(false);
-    }
-  };
-
-  const setupNotifications = async () => {
-    try {
-      // Register service worker
-      await registerServiceWorker();
-      
-      // Check current notification permission
-      if (Notification.permission === 'granted') {
-        setNotificationPermission(true);
-        // Subscribe to push notifications if permission is already granted
-        await subscribeToPushNotifications();
-      }
-    } catch (error) {
-      console.error('Error setting up notifications:', error);
-    }
-  };
-
-  const handleRequestPermission = async () => {
-    try {
-      const permissionGranted = await requestNotificationPermission();
-      setNotificationPermission(permissionGranted);
-      
-      if (permissionGranted) {
-        // If permission is granted, subscribe to push notifications
-        await subscribeToPushNotifications();
-      }
-    } catch (error) {
-      console.error('Error requesting notification permission:', error);
-    }
-  };
-
-  const fetchFriends = async () => {
-    try {
-      const response = await getFriends();
-      console.log('Fetch friends response:', response);
-      
-      setFriends(response.friends || []);
-      
-      // Update acknowledgments if any
-      if (response.acknowledgments && response.acknowledgments.length > 0) {
-        setAcknowledgments(response.acknowledgments);
-        console.log('Updated acknowledgments:', response.acknowledgments);
-      }
-      
-      // Update active alert status
-      if (response.activeAlert && response.alertId) {
-        if (!isAlertActive) {
-          console.log('Alert is active but state was inactive - updating state');
+        // Check for active alert
+        if (response.activeAlert && response.alertId) {
           setIsAlertActive(true);
+          setAlertId(response.alertId);
         }
-        setAlertId(response.alertId);
-      } else if (isAlertActive) {
-        console.log('Alert is inactive but state was active - updating state');
-        setIsAlertActive(false);
-        setAlertId(null);
-        
-        // Clear interval if alert is no longer active
-        if (window.emergencyRefreshInterval) {
-          clearInterval(window.emergencyRefreshInterval);
-          window.emergencyRefreshInterval = null;
-        }
+      } catch (err) {
+        console.error('Error initializing data:', err);
+        setError('Failed to fetch data');
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError('Failed to fetch friends');
-      console.error('Error fetching friends:', err);
-    } finally {
-      setLoading(false);
+    };
+
+    initializeData();
+  }, []);
+
+  // Set up WebSocket message handler
+  useEffect(() => {
+    if (socket && connected) {
+      const handleMessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log('Received WebSocket message:', data);
+        
+        switch (data.type) {
+          case 'emergency_alert':
+            // Handle incoming emergency alert
+            setIsAlertActive(true);
+            setAlertId(data.alertId);
+            toast.error(data.notification.message, {
+              position: "top-right",
+              autoClose: false,
+              hideProgressBar: false,
+              closeOnClick: true,
+              pauseOnHover: true,
+              draggable: true,
+            });
+            break;
+            
+          case 'emergency_alert_stopped':
+            // Handle alert stopped notification
+            setIsAlertActive(false);
+            setAlertId(null);
+            toast.info('Emergency alert has been stopped', {
+              position: "top-right",
+              autoClose: 5000,
+              hideProgressBar: false,
+              closeOnClick: true,
+              pauseOnHover: true,
+              draggable: true,
+            });
+            break;
+            
+          case 'alert_acknowledged':
+            // Handle acknowledgment notification
+            setAcknowledgments(prev => [...prev, data.notification.userId]);
+            toast.success(data.notification.message, {
+              position: "top-right",
+              autoClose: 5000,
+              hideProgressBar: false,
+              closeOnClick: true,
+              pauseOnHover: true,
+              draggable: true,
+            });
+            break;
+            
+          default:
+            break;
+        }
+      };
+      
+      socket.addEventListener('message', handleMessage);
+      return () => {
+        socket.removeEventListener('message', handleMessage);
+      };
+    } else if (socketError) {
+      console.error('WebSocket connection error:', socketError);
+      setError('Failed to connect to WebSocket server');
     }
-  };
+  }, [socket, connected, socketError]);
 
   const handleStartAlert = async () => {
     try {
-      setLoading(true);
-      
-      // Ensure push subscription is registered before starting alert
-      if (Notification.permission === 'granted') {
-        try {
-          await subscribeToPushNotifications();
-        } catch (subError) {
-          console.warn('Push subscription registration issue:', subError);
-          // Continue anyway, as the alert can still work without push
-        }
-      }
-      
       const response = await sendEmergencyAlert();
-      console.log("Emergency alert response:", response);
-      
       setIsAlertActive(true);
-      setError(null);
+      setAlertId(response.alertId);
       
-      // Save the alertId for future operations
-      if (response.alertId) {
-        setAlertId(response.alertId);
+      // Send WebSocket message to notify friends
+      if (socket && connected) {
+        console.log('Sending emergency alert via WebSocket');
+        socket.send(JSON.stringify({
+          type: 'message',
+          message: {
+            type: 'emergency_alert',
+            alertId: response.alertId,
+            notification: response.notification,
+            recipients: friends.map(friend => friend._id)
+          }
+        }));
+      } else {
+        console.error('WebSocket not connected');
+        setError('Failed to send emergency alert: WebSocket not connected');
       }
       
-      // If there are friends in the response, update the state
-      if (response.friends) {
-        setFriends(response.friends);
+      // Show notification for the sender
+      toast.success('Emergency alert sent to all friends!', {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
+
+      // If there's notification data in the response, show it
+      if (response.notification) {
+        toast.info(response.notification.message, {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
       }
-      
-      // Reset acknowledgments when starting a new alert
-      setAcknowledgments([]);
-      
-      // Begin periodic refresh of friend statuses
-      const refreshInterval = setInterval(fetchFriends, 10000); // Refresh every 10 seconds
-      
-      // Store the interval ID for cleanup
-      window.emergencyRefreshInterval = refreshInterval;
     } catch (err) {
-      setError('Failed to start emergency alert: ' + (err.message || 'Unknown error'));
       console.error('Error starting alert:', err);
-    } finally {
-      setLoading(false);
+      toast.error('Failed to send emergency alert', {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
     }
   };
 
   const handleStopAlert = async () => {
     try {
-      setLoading(true);
-  
-      if (isAlertActive) {
-        await stopEmergencyAlert(); 
-      }
-      
+      await stopEmergencyAlert();
       setIsAlertActive(false);
       setAlertId(null);
-      setError(null);
-      
-      // Clear the refresh interval
-      if (window.emergencyRefreshInterval) {
-        clearInterval(window.emergencyRefreshInterval);
-        window.emergencyRefreshInterval = null;
-      }
+      toast.info('Emergency alert stopped', {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
     } catch (err) {
-      setError('Failed to stop emergency alert: ' + (err.message || 'Unknown error'));
       console.error('Error stopping alert:', err);
-    } finally {
-      setLoading(false);
+      toast.error('Failed to stop emergency alert', {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
     }
   };
 
-  const handleAcknowledgeAlert = async (friendId) => {
+  const handleAcknowledge = async (friendId) => {
     try {
-      // Only proceed if we have an alertId
-      if (!alertId) {
-        console.error('Cannot acknowledge: No active alert ID');
-        setError('Cannot acknowledge alert: No active alert ID');
-        return;
+      const response = await acknowledgeAlert(friendId);
+      setAcknowledgments(prev => [...prev, friendId]);
+      
+      // Show notification for acknowledgment
+      toast.success('Alert acknowledged', {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
+
+      // If there's notification data in the response, show it
+      if (response.notification) {
+        toast.info(response.notification.message, {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
       }
-      
-      console.log('Acknowledging alert with ID:', alertId, 'for friend:', friendId);
-      
-      // Pass both alertId and friendId to acknowledge the alert for a specific user
-      const response = await acknowledgeAlert(alertId, friendId);
-      console.log("Acknowledge response:", response);
-      
-      // Add to acknowledgments list if not already there
-      if (!acknowledgments.includes(friendId)) {
-        setAcknowledgments(prev => [...prev, friendId]);
-      }
-      
-      // Refresh friends list to get updated acknowledgments
-      fetchFriends();
     } catch (err) {
       console.error('Error acknowledging alert:', err);
-      setError('Failed to acknowledge alert: ' + (err.message || 'Unknown error'));
+      toast.error('Failed to acknowledge alert', {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
     }
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-50">
+      <ToastContainer />
       {/* Hero Section */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
@@ -311,23 +302,6 @@ const EmergencyAlert = () => {
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Emergency Alert</h3>
               <p className="text-gray-600 mb-4">Send alerts to your friends in case of emergency</p>
               
-              {!notificationPermission && (
-                <div className="mb-4">
-                  <Alert severity="warning" sx={{ mb: 2 }}>
-                    Notification permission is required for this feature to work properly.
-                  </Alert>
-                  <Button 
-                    variant="outlined" 
-                    color="primary" 
-                    onClick={handleRequestPermission}
-                    sx={{ mb: 2 }}
-                    fullWidth
-                  >
-                    Allow Notifications
-                  </Button>
-                </div>
-              )}
-              
               {!isAlertActive ? (
                 <Button
                   variant="contained"
@@ -335,15 +309,15 @@ const EmergencyAlert = () => {
                   size="large"
                   fullWidth
                   onClick={handleStartAlert}
-                  disabled={loading}
+                  disabled={loading || friends.length === 0}
                   sx={{ py: 1.5 }}
                 >
-                  {loading ? <CircularProgress size={24} color="inherit" /> : 'Start Emergency Alert'}
+                  {loading ? <CircularProgress size={24} color="inherit" /> : 'Send Emergency Alert'}
                 </Button>
               ) : (
                 <Button
                   variant="contained"
-                  color="primary"
+                  color="secondary"
                   size="large"
                   fullWidth
                   onClick={handleStopAlert}

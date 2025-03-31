@@ -1,6 +1,7 @@
 import { createContext, useState, useContext, useEffect } from 'react';
 import { authService } from '../services/api';
 import { toast } from 'react-toastify';
+import socketService from '../services/socket';
 
 // Create the auth context
 const AuthContext = createContext();
@@ -14,29 +15,50 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Initialize WebSocket connection
+  const initializeWebSocket = (user) => {
+    if (user?._id) {
+      console.log('Initializing WebSocket connection for user:', user._id);
+      const socket = socketService.connect(user._id);
+      if (socket) {
+        console.log('WebSocket connection initialized successfully');
+      } else {
+        console.error('Failed to initialize WebSocket connection');
+      }
+    }
+  };
+
   // Load user from localStorage on initial mount
   useEffect(() => {
-    const loadUserFromStorage = () => {
+    const loadUserFromStorage = async () => {
       try {
         const token = localStorage.getItem('token');
         console.log('Token from localStorage on mount:', token);
         
-        const userString = localStorage.getItem('user');
-        console.log('User string from localStorage on mount:', userString);
-        
-        if (token && userString) {
-          const user = JSON.parse(userString);
-          console.log('Parsed user from localStorage:', user);
-          setCurrentUser(user);
+        if (token) {
+          // Get fresh user data from the server
+          const response = await authService.getCurrentUser();
+          const user = response.user;
+          console.log('Fetched current user from server:', user);
+          
+          if (user) {
+            setCurrentUser(user);
+            localStorage.setItem('user', JSON.stringify(user));
+            // Initialize WebSocket connection for existing user
+            initializeWebSocket(user);
+          } else {
+            console.log('No user data received from server');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setCurrentUser(null);
+          }
         } else {
-          console.log('No user found in localStorage or missing token');
-          // Clear any partial data
-          localStorage.removeItem('token');
+          console.log('No token found in localStorage');
           localStorage.removeItem('user');
           setCurrentUser(null);
         }
       } catch (error) {
-        console.error('Error loading user from storage:', error);
+        console.error('Error loading user:', error);
         localStorage.removeItem('user');
         localStorage.removeItem('token');
         setCurrentUser(null);
@@ -63,12 +85,25 @@ export const AuthProvider = ({ children }) => {
       const data = await authService.login(credentials);
       console.log('Login response:', data);
       
-      if (data.user) {
-        setCurrentUser(data.user);
-        console.log('Current user state updated:', data.user);
+      if (data.user && data.token) {
+        // Store token
+        localStorage.setItem('token', data.token);
+        
+        // Get fresh user data
+        const userResponse = await authService.getCurrentUser();
+        const user = userResponse.user;
+        console.log('Fetched user after login:', user);
+        
+        if (user) {
+          setCurrentUser(user);
+          localStorage.setItem('user', JSON.stringify(user));
+          // Initialize WebSocket connection after successful login
+          initializeWebSocket(user);
+        } else {
+          throw new Error('No user data received from server');
+        }
       } else {
-        console.error('No user data in response');
-        throw new Error('No user data received from server');
+        throw new Error('Invalid login response');
       }
       
       toast.success('Successfully signed in!');
@@ -98,12 +133,10 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     console.log('Logging out, removing tokens');
     authService.logout();
+    // Disconnect WebSocket before clearing user data
+    socketService.disconnect();
     setCurrentUser(null);
     toast.info('You have been logged out');
-    
-    // Verify token was removed
-    const tokenAfterLogout = localStorage.getItem('token');
-    console.log('Token after logout:', tokenAfterLogout);
   };
 
   // Update profile function
@@ -159,7 +192,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
   );
 };

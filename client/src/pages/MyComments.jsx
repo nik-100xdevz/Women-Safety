@@ -105,7 +105,7 @@ const MyComments = () => {
             transition={{ duration: 0.6 }}
             className="space-y-6"
           >
-            {comments.map((comment) => (
+            {comments && comments.map((comment) => (
              
               <div
                 key={comment._id}
@@ -114,7 +114,7 @@ const MyComments = () => {
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h3 className="text-xl font-semibold text-gray-900">
-                      On: {comment.reportId.title}
+                      On: {comment.reportId?comment.reportId.title: " "}
                     </h3>
                     <p className="text-sm text-gray-500 mt-1">
                       {new Date(comment.createdAt).toLocaleDateString()}

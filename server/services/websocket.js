@@ -3,8 +3,8 @@ import { WebSocketServer } from 'ws';
 class WebSocketService {
   constructor() {
     this.wss = null;
-    this.clients = new Map(); // Store client connections with their userIds
-    this.rooms = new Map(); // Store room information
+    this.clients = new Map(); 
+    this.rooms = new Map(); 
   }
 
   initialize(server) {
@@ -39,8 +39,6 @@ class WebSocketService {
             case 'message':
               this.handleMessage(userId, data.roomId, data.message);
               break;
-            default:
-              console.log('Unknown message type:', data.type);
           }
         } catch (error) {
           console.error('Error processing message:', error);
@@ -147,6 +145,26 @@ class WebSocketService {
   }
 
   handleMessage(senderId, roomId, message) {
+    // Handle emergency alert events first, before room checks
+    if (message.type === 'emergency_alert') {
+      // Send to specific recipients instead of broadcasting to all
+      if (message.recipients && Array.isArray(message.recipients)) {
+        message.recipients.forEach(recipientId => {
+          const recipientWs = this.clients.get(recipientId);
+          if (recipientWs && recipientWs.readyState === WebSocket.OPEN) {
+            recipientWs.send(JSON.stringify({
+              type: 'emergency_alert',
+              senderId: senderId,
+              alertId: message.alertId,
+              notification: message.notification
+            }));
+          }
+        });
+      }
+      return;
+    }
+
+    // For all other messages, require a room
     const room = this.rooms.get(roomId);
     if (!room) {
       const senderWs = this.clients.get(senderId);
@@ -171,24 +189,10 @@ class WebSocketService {
       return;
     }
 
-    // Handle comment events
-    if (message.type === 'comment_added' || message.type === 'comment_deleted') {
-      // Broadcast to all clients, not just room participants
-      this.broadcastToAll({
-        type: message.type,
-        reportId: message.reportId,
-        comment: message.comment
-      });
-      return;
-    }
-
-    console.log('Broadcasting message to room:', roomId, 'participants:', room.participants);
-
     // Broadcast message to all participants in the room
     room.participants.forEach(participantId => {
       const ws = this.clients.get(participantId);
       if (ws) {
-        console.log('Sending message to participant:', participantId);
         ws.send(JSON.stringify({
           type: 'message',
           senderId: senderId,
@@ -196,15 +200,6 @@ class WebSocketService {
           message: message,
           timestamp: new Date().toISOString()
         }));
-      }
-    });
-  }
-
-  // Add new method to broadcast to all clients
-  broadcastToAll(message) {
-    this.clients.forEach((ws) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(message));
       }
     });
   }
@@ -220,6 +215,7 @@ class WebSocketService {
   // Helper method to send message to specific user
   sendToUser(userId, message) {
     const ws = this.clients.get(userId);
+    console.log("we are sending to user",ws)
     if (ws) {
       ws.send(JSON.stringify(message));
     }
